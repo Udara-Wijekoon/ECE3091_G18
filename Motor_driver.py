@@ -10,6 +10,7 @@ GPIO.setwarnings(false)
 #setting the PWM Frequency
 PWM = 100
 
+
 #Motor controller pins
 #standadising the port numbers would avoid possible errors
 GPIO.setup(12, GPIO.OUT)    #pwn1
