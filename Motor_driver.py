@@ -8,7 +8,7 @@ GPIO.setmode(GPIO.BOARD) #set the board mode so we can refer to the pin numbers
 GPIO.setwarnings(false) 
 
 #setting the PWM Frequency
-PWM = 100
+PWM = 100 # might need to edit based on testing
 
 
 #Motor controller pins
