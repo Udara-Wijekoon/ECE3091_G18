@@ -1,5 +1,7 @@
-import ultrasonic
-import Computer_Vision
-import Motor_driver
+import ultrasonic as US
+import Computer_Vision as CV
+import Motor_driver as MD
+
+
 
 
