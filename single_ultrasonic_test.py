@@ -1,3 +1,7 @@
+# code to test single ultrasonic sensor - this will help us to the identify the capabilities of the ultrasound sensor.
+#
+
+
 #Libraries
 import RPi.GPIO as GPIO
 import time
