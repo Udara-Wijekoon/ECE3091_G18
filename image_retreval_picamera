@@ -1,0 +1,12 @@
+#this code is gets the images from the picamera for image processing later.
+# this code can be integrated to another files later. however, this must 
+# be kept seperate until this code retreives the images from the pi camera without any issues
+
+import cv2
+
+cap = cv2.VideoCapture(0)
+cap.set(cv2.CAP_PROP_FRAME_WIDTH,640)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT,480)
+cap.set(cv2.CAP_PROP_FPS, 40
+
+#Should we make something to see the the camera video in real time?
