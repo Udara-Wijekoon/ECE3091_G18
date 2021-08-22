@@ -1,80 +1,116 @@
-#!/usr/bin/python
+# Code for 4 Ultrasonic Sensors
+
+
+
+#Libraries
 import RPi.GPIO as GPIO
 import time
-from datetime import datetime
-import os
-
-# GPIO setup
-GPIO.setmode (GPIO.BCM)
-GPIO.setwarnings(False)
-
-# setup gpio for echo & trig
-echopin = [24,17,22,6]
-trigpin = [23,4,27,5]
  
-for j in range(4):
-    GPIO.setup(trigpin[j], GPIO.OUT)
-    GPIO.setup(echopin[j], GPIO.IN)
-    print j, echopin[j], trigpin[j]
-    print " "
-    
+#GPIO Mode (BOARD / BCM)
+GPIO.setmode(GPIO.BCM)
+ 
+#set GPIO Pins
+  #for Front Ultrasound
+GPIO_TRIGGER_FRONT = 18
+GPIO_ECHO_FRONT = 24
+  #for Left Ultrasound
+GPIO_TRIGGER_LEFT = 19
+GPIO_ECHO_LEFT = 24
+  #for Right Ultrasound
+GPIO_TRIGGER_RIGHT = 20
+GPIO_ECHO_RIGHT = 24
+  #for Back Ultrasound
+GPIO_TRIGGER_BACK = 21
+GPIO_ECHO_BACK = 24
+
+#set GPIO direction (IN / OUT)
+GPIO.setup(GPIO_TRIGGER_FRONT, GPIO.OUT)
+GPIO.setup(GPIO_ECHO_FRONT, GPIO.IN)
+
+GPIO.setup(GPIO_TRIGGER_LEFT, GPIO.OUT)
+GPIO.setup(GPIO_ECHO_LEFT, GPIO.IN)
+
+GPIO.setup(GPIO_TRIGGER_RIGHT, GPIO.OUT)
+GPIO.setup(GPIO_ECHO_RIGHT, GPIO.IN)
+
+GPIO.setup(GPIO_TRIGGER_BACK, GPIO.OUT)
+GPIO.setup(GPIO_ECHO_BACK, GPIO.IN)
 
 
-# Get reading from HC-SR04   
-def ping(echo, trig):
-    
-    GPIO.output(trig, False)
-    # Allow module to settle
-    time.sleep(0.5)
-    # Send 10us pulse to trigger
-    GPIO.output(trig, True)
+def distance(GPIO_TRIGGER,GPIO_ECHO):
+    # set Trigger to HIGH
+    GPIO.output(GPIO_TRIGGER, True)
+ 
+    # set Trigger after 0.01ms to LOW
     time.sleep(0.00001)
-    GPIO.output(trig, False)
-    pulse_start = time.time()
-
+    GPIO.output(GPIO_TRIGGER, False)
+ 
+    StartTime = time.time()
+    StopTime = time.time()
+ 
     # save StartTime
-    while GPIO.input(echo) == 0:
-        pulse_start = time.time()
-
+    while GPIO.input(GPIO_ECHO) == 0:
+        StartTime = time.time()
+ 
     # save time of arrival
-    while GPIO.input(echo) == 1:
-        pulse_end = time.time()
-
+    while GPIO.input(GPIO_ECHO) == 1:
+        StopTime = time.time()
+ 
     # time difference between start and arrival
-    pulse_duration = pulse_end - pulse_start
-    # mutiply with the sonic speed (34300 cm/s)
+    TimeElapsed = StopTime - StartTime
+    # multiply with the sonic speed (34300 cm/s)
     # and divide by 2, because there and back
-    distance = pulse_duration * 17150
-    
-    distance = round(distance, 2)
-    
+    distance = (TimeElapsed * 34300) / 2
+ 
     return distance
 
-print " press Ctrl+c to stop program "
-try:
-    # main loop
-    while True:
-        # get distances and assemble data line for writing 
-        results = str(datetime.now()) + ","
-        for j in range(2):
+def distanceTrigger(distance)
+    # returns true if the distnce is less than 5
+    # false otherwise  
+    return distance<=5
 
-            distance = ping(echopin[j], trigpin[j])
-            print ("sensor", j+1,": ",distance,"cm")
-            results = results + str(distance) + ","
+
+
+if __name__ == '__main__':
+    try:
+        while True:
+            dist_front = distance(GPIO_TRIGGER_FRONT,GPIO_ECHO_FRONT)
+            dist_back = distance(GPIO_TRIGGER_BACK,GPIO_ECHO_BACK)
+            dist_left = distance(GPIO_TRIGGER_LEFT,GPIO_ECHO_LEFT)
+            dist_right = distance(GPIO_TRIGGER_RIGHT,GPIO_ECHO_RIGHT)
             
-        results = results + "\n"
-              
-        # write results data to file        
-                      
-        with open("/home/pi/data_log.csv", "a") as file:         
-            if os.stat("/home/pi/data_log.csv").st_size == 0:
-                file.write("Time,Sensor1,Sensor2,Sensor3,Sensor4\n")      
-            file.write(results)
-        # if sensors write to file to often increase this time        
-        print "wait"
-        time.sleep (2)    
-    
-except KeyboardInterrupt:
-    print("keyboard interrupt detected, File closed")       
-    file.close()    
-    
+            
+            # wall defense method
+            if(distanceTrigger(dist_front)): # because our robot will move predominantly in the front direction
+                # step 1 stop motor 
+                robo_stop_flag = 1
+                #code to turn robot in the desiered direction 
+                if(distanceTrigger(dist_right) and !distanceTrigger(dist_left)) # both sides are free to move
+                    # choose a predominat direction or 
+                    # my suggestion: choose the direction with greater distance to the wall 
+                    
+                
+                elif(distanceTrigger(dist_right) and !distanceTrigger(dist_left)): #if right side is blocked 
+                    #turn 90 deg to the left
+                elif(distanceTrigger(dist_left) and !distanceTrigger(dist_right)): # if left side is blocked
+                    #turn 90 deg to the right
+                elif(distanceTrigger(dist_left) and distanceTrigger(dist_right) and !distanceTrigger(dist_back)): #if both sides are blocked  
+                    # turn 180 deg 
+                elif(distanceTrigger(dist_left) and distanceTrigger(dist_right) and distanceTrigger(dist_back)): # all directions blocked
+                    # wait for it to get clear maybe the other robot is close by
+                    time.sleep(5)
+                    while(distanceTrigger(dist_left) and distanceTrigger(dist_right) and distanceTrigger(dist_back))
+                        #rotate 10 deg 
+                        dist_back = distance(GPIO_TRIGGER_BACK,GPIO_ECHO_BACK)
+                        dist_left = distance(GPIO_TRIGGER_LEFT,GPIO_ECHO_LEFT)
+                        dist_right = distance(GPIO_TRIGGER_RIGHT,GPIO_ECHO_RIGHT)
+                    
+            print ("Measured Distance = %.1f cm" % dist)
+            time.sleep(1)
+ 
+        # Reset by pressing CTRL + C
+    except KeyboardInterrupt:
+        print("Measurement stopped by User")
+        GPIO.cleanup()
+
+
