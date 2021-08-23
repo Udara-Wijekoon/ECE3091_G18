@@ -15,3 +15,4 @@ for j in range(10):
     pre_steps = encoder.steps
     
     #NB, if steps keeps increasing, what about integer overflows?
+pwm.off()
