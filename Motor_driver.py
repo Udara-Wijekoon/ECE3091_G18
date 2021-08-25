@@ -47,20 +47,20 @@ def right(speed):
     Motor(0, speed, 1)
     Motor(1, speed, 0)
 
-def motor(motor, speed, direction):
+def Motor(motor, speed, direction):
     GPIO.output(22, GPIO.HIGH);
     in1 = GPIO.HIGH
     in2 = GPIO.LOW
 
-    if(direction = 1):
+    if(direction == 1):
         in1 = GPIO.LOW
         in2 = GPIO.HIGH
 
-    if(motor = 0):
+    if(motor == 0):
         GPIO.output(16, in1)
         GPIO.output(18, in2)
         pwm1.ChangeDutyCycle(speed)
-    elif(motor = 0):
+    elif(motor == 1):
         GPIO.output(15, in1)
         GPIO.output(13, in2)
         pwm2.ChangeDutyCycle(speed)
