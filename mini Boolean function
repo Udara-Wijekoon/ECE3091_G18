@@ -1,0 +1,18 @@
+import ultrasonicFor4
+
+array = []
+
+def distanceTF(GPIO_TRIGGER,GPIO_ECHO):
+    a = distance(GPIO_TRIGGER,GPIO_ECHO)         #calculating distance
+    b = distanceTrigger(a)                       #return true or false
+    return b
+
+#be placed in main
+#return true or false for every ultrasonic sensor
+Boolfront = distanceTF(GPIO_TRIGGER_FRONT,GPIO_ECHO_FRONT)
+Boolleft = distanceTF(GPIO_TRIGGER_LEFT,GPIO_ECHO_LEFT)
+Boolright = distanceTF(GPIO_TRIGGER_RIGHT,GPIO_ECHO_RIGHT)
+Boolback = distanceTF(GPIO_TRIGGER_BACK,GPIO_ECHO_BACK)
+
+#append all into array
+array.append([Boolfront, Boolleft, Boolright, Boolback])
