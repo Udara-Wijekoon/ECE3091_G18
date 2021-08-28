@@ -9,6 +9,10 @@ Created on Mon Aug 23 13:11:53 2021
 import gpiozero
 import time
 import numpy as np
+
+
+import ultrasonicFor4
+
 #Shaft , Motor Control and Robot Navigation
 
 #STEPS
@@ -203,6 +207,16 @@ class RobotController: #calculates the required duty cycles to get wheels
         return duty_cycle_l, duty_cycle_r   
 
 
+
+
+#Mini Function Made By Audry
+def distanceTF(GPIO_TRIGGER,GPIO_ECHO):
+    
+    a = distance(GPIO_TRIGGER,GPIO_ECHO)         #calculating distance
+    b = distanceTrigger(a) 
+                                                    #return true or false
+    return b
+
 #TINITIAL TEST: ROTATE MOTOR USING PWM SIGNALS----------------------
 #The code below turns on a pwm control, toggles the direction of the pwm drive,
 # and reads from a rotary encoder. Parameters aren't tuned or properly set-up at all.
@@ -227,10 +241,12 @@ for j in range(10):
     print('Counter:',encoder2.steps,'Speed:',(encoder2.steps-pre_steps2)/5.0,'steps per second\n')
     pre_steps1 = encoder1.steps
     pre_steps2 = encoder2.steps
+    
+    
 
 
     
-    #NB, if steps keeps increasing, what about integer overflows?
+ #NB, if steps keeps increasing, what about integer overflows?
     
     
 
@@ -255,9 +271,16 @@ goal_th = 0
 print(goal_x, goal_y, goal_th)
 
 
-for i in range(300): #goes to goal in 300 steps or less 1 step == 1 directional change ~0.1s
+for i in range(300): #goes to goal in 300 steps or less 1 step == 1 directional change ~0.2s
     
     #TO DO! check for obstacles and update detected obstacles
+    Boolfront = distanceTF(GPIO_TRIGGER_FRONT,GPIO_ECHO_FRONT)
+    Boolleft = distanceTF(GPIO_TRIGGER_LEFT,GPIO_ECHO_LEFT)
+    Boolright = distanceTF(GPIO_TRIGGER_RIGHT,GPIO_ECHO_RIGHT)
+    Boolback = distanceTF(GPIO_TRIGGER_BACK,GPIO_ECHO_BACK)
+    #--------------checking for obstacles
+    
+    obstacles = [Boolfront, Boolleft, Boolright, Boolback] #updating current obstacles
     
     v,w = planner.plan(goal_x,goal_y,goal_th,robot.x,robot.y,robot.th) #Calculates required direction to get to goal v, w 
     
@@ -272,7 +295,7 @@ for i in range(300): #goes to goal in 300 steps or less 1 step == 1 directional 
         
     pwm1.value, pwm2.value = controller.drive(v,w,robot.wl,robot.wr) #Calculates send velocities to pwm ON: START TIMER 
     start = time.time()
-    time.sleep(0.1)#move for 0.1 before calculating next root
+    time.sleep(0.2)#move for 0.2 before calculating next root
 
     cost = robot.rollout(v,w,goal_x,goal_y,goal_th,x,y,th) #returns how far off the final goal we are 
     
