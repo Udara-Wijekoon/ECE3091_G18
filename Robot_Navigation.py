@@ -13,6 +13,9 @@ import numpy as np
 
 import ultrasonicFor4
 
+
+from gpiozero import RotaryEncoder
+
 #Shaft , Motor Control and Robot Navigation
 
 #STEPS
@@ -47,14 +50,14 @@ global pre_steps1
 global pre_steps2 
 
 #Creating classes for PWM control and DIR Control
-pwm1 = gpiozero.PWMOutputDevice(pin=13,active_high=True,initial_value=0,frequency=1000) #creates a class of PWM output
-direction1= gpiozero.OutputDevice(pin=11) #NEED TO CHANGE PIN ASSIGNMENTS FOR PWM
-pwm2 = gpiozero.PWMOutputDevice(pin=15,active_high=True,initial_value=0,frequency=1000) #creates a class of PWM output
-direction2= gpiozero.OutputDevice(pin=16) 
+pwm1 = gpiozero.PWMOutputDevice(pin=12,active_high=True,initial_value=0,frequency=1000) #creates a class of PWM output
+direction1= gpiozero.OutputDevice(pin=17) #NEED TO CHANGE PIN ASSIGNMENTS FOR PWM
+pwm2 = gpiozero.PWMOutputDevice(pin=13,active_high=True,initial_value=0,frequency=1000) #creates a class of PWM output
+direction2= gpiozero.OutputDevice(pin=23) 
 
 
 encoder1 = gpiozero.RotaryEncoder(a=5, b=6,max_steps=100000)#cretates a class for a rotaty encoder
-encoder2 = gpiozero.RotaryEncoder(a=5, b=6,max_steps=100000)
+encoder2 = gpiozero.RotaryEncoder(a=26, b=16,max_steps=100000)
 #TO DO! find apropriate max steps and figure out what to do with overflow
 # Maybe: Refresh position and encoder values after we reach each goal. 
 
@@ -217,6 +220,7 @@ def distanceTF(GPIO_TRIGGER,GPIO_ECHO):
                                                     #return true or false
     return b
 
+
 #TINITIAL TEST: ROTATE MOTOR USING PWM SIGNALS----------------------
 #The code below turns on a pwm control, toggles the direction of the pwm drive,
 # and reads from a rotary encoder. Parameters aren't tuned or properly set-up at all.
@@ -243,10 +247,7 @@ for j in range(10):
     pre_steps2 = encoder2.steps
     
     
-
-
-    
- #NB, if steps keeps increasing, what about integer overflows?
+#NB, if steps keeps increasing, what about integer overflows?
     
     
 
@@ -256,7 +257,7 @@ for j in range(10):
 start = 0
 DT = 0.1 #This updates per iteration
 
-obstacles = [False, False, False, False] #Front, Left, Right, Back
+obstacles = [0,0,0,0] #Front, Left, Right, Back
 
 robot = DiffDriveRobot(inertia=5, dt=DT, drag=1, wheel_radius=0.05, wheel_sep=0.15) #INITIALISE ROBOT AND PARAMETERS
 controller = RobotController(Kp=1,Ki=0.25,wheel_radius=0.05,wheel_sep=0.15)
