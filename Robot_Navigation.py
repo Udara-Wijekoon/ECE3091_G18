@@ -87,7 +87,7 @@ class DiffDriveRobot: #estimates the absolute position of the robot
         
         self.I = inertia
         self.d = drag
-        self.dt = dt #dt is a global variable
+     
         
         self.r = wheel_radius
         self.l = wheel_sep
@@ -110,9 +110,9 @@ class DiffDriveRobot: #estimates the absolute position of the robot
         
         v, w = self.base_velocity(self.wl,self.wr)
         
-        self.x = self.x + self.dt*v*np.cos(self.th)
-        self.y = self.y + self.dt*v*np.sin(self.th)
-        self.th = self.th + w*self.dt
+        self.x = self.x + DT*v*np.cos(self.th)
+        self.y = self.y + DT*v*np.sin(self.th)
+        self.th = self.th + w*DT
         
         return self.x, self.y, self.th 
     
@@ -228,7 +228,7 @@ def distanceTF(GPIO_TRIGGER,GPIO_ECHO):
 
 # Step through duty cycle values, slowly increasing the speed and changing the direction of motion
 
-dt = 0
+
 prestep1 = 0
 presteps2 = 0
 
@@ -259,9 +259,9 @@ DT = 0.1 #This updates per iteration
 
 obstacles = [False,False,False,False] #Front, Left, Right, Back
 
-robot = DiffDriveRobot(inertia=5, dt=DT, drag=1, wheel_radius=0.05, wheel_sep=0.15) #INITIALISE ROBOT AND PARAMETERS
+robot = DiffDriveRobot(inertia=5, drag=1, wheel_radius=0.05, wheel_sep=0.15) #INITIALISE ROBOT AND PARAMETERS
 controller = RobotController(Kp=1,Ki=0.25,wheel_radius=0.05,wheel_sep=0.15)
-planner = TentaclePlanner(dt=0.1,steps=5,alpha=1,beta=1e-5)
+planner = TentaclePlanner(obstacles = obstacles,steps=5,alpha=1,beta=1e-5)
 
 
 #CODE TO CONTROL ROBOT MOTION BASED ON GOAL POSITION X, Y and THETA
