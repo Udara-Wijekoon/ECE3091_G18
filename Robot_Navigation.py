@@ -10,10 +10,9 @@ import gpiozero
 import time
 import numpy as np
 
-
 import ultrasonicFor4
-
-
+from ultrasonicFor4 import distance, distanceTrigger, GPIO_TRIGGER_FRONT, GPIO_TRIGGER_BACK
+from ultrasonicFor4 import GPIO_TRIGGER_LEFT, GPIO_TRIGGER_RIGHT, GPIO_ECHO_FRONT, GPIO_ECHO_BACK, GPIO_ECHO_LEFT, GPIO_ECHO_RIGHT
 from gpiozero import RotaryEncoder
 
 #Shaft , Motor Control and Robot Navigation
@@ -233,13 +232,14 @@ dt = 0
 prestep1 = 0
 presteps2 = 0
 
+
 for j in range(10):
     pwm1.value = j/10
     pwm2.value = j/10
     direction1.value = not direction1.value
     direction2.value = not direction2.value
     print('Duty cycle:',pwm1.value,'Direction:',direction1.value)
-    print('Duty cycle:',pwm1.value,'Direction:',direction1.value)
+    print('Duty cycle:',pwm2.value,'Direction:',direction2.value)
     time.sleep(5.0) #*********
     print('Counter:',encoder1.steps,'Speed:',(encoder1.steps-pre_steps1)/5.0,'steps per second\n')
     print('Counter:',encoder2.steps,'Speed:',(encoder2.steps-pre_steps2)/5.0,'steps per second\n')
@@ -257,7 +257,7 @@ for j in range(10):
 start = 0
 DT = 0.1 #This updates per iteration
 
-obstacles = [0,0,0,0] #Front, Left, Right, Back
+obstacles = [False,False,False,False] #Front, Left, Right, Back
 
 robot = DiffDriveRobot(inertia=5, dt=DT, drag=1, wheel_radius=0.05, wheel_sep=0.15) #INITIALISE ROBOT AND PARAMETERS
 controller = RobotController(Kp=1,Ki=0.25,wheel_radius=0.05,wheel_sep=0.15)
@@ -282,6 +282,7 @@ for i in range(300): #goes to goal in 300 steps or less 1 step == 1 directional 
     #--------------checking for obstacles
     
     obstacles = [Boolfront, Boolleft, Boolright, Boolback] #updating current obstacles
+    
     
     v,w = planner.plan(goal_x,goal_y,goal_th,robot.x,robot.y,robot.th) #Calculates required direction to get to goal v, w 
     
