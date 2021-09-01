@@ -70,6 +70,8 @@ encoder2 = gpiozero.RotaryEncoder(a=26, b=16,max_steps=100000)
 # Maybe: Refresh position and encoder values after we reach each goal. 
 
 
+#We are using a 32-bit encoder (32 steps / revolution)
+
 
 #These devices typically have three pins labelled “A”, “B”, and “C”. 
 #Connect A and B directly to two GPIO pins, and C (“common”) to one of the ground pins on your Pi.
@@ -112,8 +114,8 @@ class DiffDriveRobot: #estimates the absolute position of the robot
     # Kinematic motion model
     def pose_update(self,duty_cycle_l,duty_cycle_r):
         
-        self.wl = (encoder1.steps-pre_steps1)/DT #measured speed steps/s
-        self.wr = (encoder1.steps-pre_steps1)/DT
+        self.wl = (encoder1.steps-pre_steps1)/(32*DT) #measured speed revs/s - shaft encoder is 32 bits
+        self.wr = (encoder1.steps-pre_steps1)/(32*DT)
         
         v, w = self.base_velocity(self.wl,self.wr)
         
@@ -260,8 +262,8 @@ for j in range(10):
     print('Duty cycle:',pwm1.value,'Direction:',ain1.value)
     print('Duty cycle:',pwm2.value,'Direction:',bin2.value)
     time.sleep(5.0) #*********
-    print('Counter:',encoder1.steps,'Speed:',(encoder1.steps-pre_steps1)/5.0,'steps per second\n')
-    print('Counter:',encoder2.steps,'Speed:',(encoder2.steps-pre_steps2)/5.0,'steps per second\n')
+    print('Counter:',encoder1.steps,'Speed:',(encoder1.steps-pre_steps1)/(32*5.0),'revs per second\n')
+    print('Counter:',encoder2.steps,'Speed:',(encoder2.steps-pre_steps2)/(32*5.0),'revs per second\n')
     pre_steps1 = encoder1.steps
     pre_steps2 = encoder2.steps
     
@@ -329,8 +331,6 @@ for i in range(300): #goes to goal in 300 steps or less 1 step == 1 directional 
         break #stop moving when we are close enough to our goal
     
 pwm1.value, pwm2.value = 0,0 #stop robot after 300 steps (30s) or if we reach out final goal
-
-
 
 
 #TO DO! find a way to calibrate robot posision using computer vision of US avoid error building up
