@@ -112,18 +112,18 @@ class DiffDriveRobot: #estimates the absolute position of the robot
         return v, w
     
     # Kinematic motion model
-    def pose_update(self,duty_cycle_l,duty_cycle_r):
+    def pose_update(self):
         
         self.wl = (encoder1.steps-pre_steps1)/(32*DT) #measured speed revs/s - shaft encoder is 32 bits
         self.wr = (encoder1.steps-pre_steps1)/(32*DT)
         
-        v, w = self.base_velocity(self.wl,self.wr)
+        v, w = self.base_velocity(self.wl,self.wr)#returns base linear and angular velocity
         
         self.x = self.x + DT*v*np.cos(self.th)
         self.y = self.y + DT*v*np.sin(self.th)
         self.th = self.th + w*DT
         
-        return self.x, self.y, self.th 
+        return self.x, self.y, self.th #estimate current position
     
     
 
@@ -200,11 +200,20 @@ class RobotController: #calculates the required duty cycles to get wheels
         
     def p_control(self,w_desired,w_measured,e_sum):
         
-        duty_cycle = min(max(-1,self.Kp*(w_desired-w_measured) + self.Ki*e_sum),1)
+        duty = min(max(-1,self.Kp*(w_desired-w_measured) + self.Ki*e_sum),1)
+        
+        if duty < 0: #Ensures duty cycle is between 0 and 1 
+            duty_cycle = np.abs(duty) #reverse direction
+            in1 = 0
+            in2 = 1 
+        else:
+            duty_cycle = duty #forward direction
+            in1 = 1
+            in2 = 0
         
         e_sum = e_sum + (w_desired-w_measured)
         
-        return duty_cycle, e_sum
+        return duty_cycle, e_sum, in1, in2 #now returns wheel directional control
         
         
     def drive(self,v_desired,w_desired,wl,wr):
@@ -212,10 +221,10 @@ class RobotController: #calculates the required duty cycles to get wheels
         wl_desired = v_desired/self.r + self.l*w_desired/2 
         wr_desired = v_desired/self.r - self.l*w_desired/2
         
-        duty_cycle_l,self.e_sum_l = self.p_control(wl_desired,wl,self.e_sum_l)
-        duty_cycle_r,self.e_sum_r = self.p_control(wr_desired,wr,self.e_sum_r)
+        duty_cycle_l,self.e_sum_l, ain1, ain2 = self.p_control(wl_desired,wl,self.e_sum_l)
+        duty_cycle_r,self.e_sum_r, bin1, bin2 = self.p_control(wr_desired,wr,self.e_sum_r)
         
-        return duty_cycle_l, duty_cycle_r   
+        return duty_cycle_l, duty_cycle_r, ain1, ain2, bin1, bin2  #speed and direction control
 
 
 
@@ -298,7 +307,7 @@ bin1.value = 1;
 bin2.value = 0; 
 
 
-for i in range(300): #goes to goal in 300 steps or less 1 step == 1 directional change ~0.2s
+for i in range(300): #goes to goal in 300 steps or less 1 step == 1 directional change ~0.1s
     
     #TO DO! check for obstacles and update detected obstacles
     Boolfront = distanceTF(GPIO_TRIGGER_FRONT,GPIO_ECHO_FRONT)
@@ -319,11 +328,12 @@ for i in range(300): #goes to goal in 300 steps or less 1 step == 1 directional 
     
     if i>0: #update robot position after first iteration
         DT = end - start
-        x,y,th = robot.pose_update(pwm1.value,pwm2.value) #simulate robot movement, update position
-        
-    pwm1.value, pwm2.value = controller.drive(v,w,robot.wl,robot.wr) #Calculates send velocities to pwm ON: START TIMER 
-    start = time.time()
-    time.sleep(0.2)#move for 0.2 before calculating next root
+        x,y,th = robot.pose_update() #simulate robot movement, update position, no arguments as reads off encoders. 
+     
+    #Calculates send velocities to pwm 
+    pwm1.value, pwm2.value, ain1.value, ain2.value, bin1.value, bin2.value = controller.drive(v,w,robot.wl,robot.wr) 
+    start = time.time() #START TIMER
+    time.sleep(0.1)#move for 0.1 before calculating next route
 
     cost = robot.rollout(v,w,goal_x,goal_y,goal_th,x,y,th) #returns how far off the final goal we are 
     
