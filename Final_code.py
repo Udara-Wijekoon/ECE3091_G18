@@ -346,8 +346,8 @@ for i in range(50): #goes to goal in 300 steps or less 1 step == 1 directional c
     if i>0: #update robot position after first iteration
         DT = end - start
         robot.x,robot.y,robot.th = robot.pose_update() #simulate robot movement, update position, no arguments
-        presteps_1 = encoder1.steps
-        prestep_2 = encoder2.steps
+        pre_steps1 = encoder1.steps
+        pre_steps2 = encoder2.steps
         print("current position")
         print(robot.x,robot.y,robot.th)#as reads off encoders. 
      
