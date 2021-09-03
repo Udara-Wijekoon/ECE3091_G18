@@ -262,10 +262,10 @@ pre_steps1 = 0
 pre_steps2 = 0
 
 #Initialise direction as forward
-ain1.value = 1; 
-ain2.value = 0; 
-bin1.value = 1; 
-bin2.value = 0; 
+ain1.value = 1
+ain2.value = 0
+bin1.value = 1
+bin2.value = 0
 
 
 pre_steps1 = encoder1.steps
@@ -274,9 +274,9 @@ pre_steps2 = encoder2.steps
 
 
 
-for j in range(2):
-    pwm1.value = 0
-    pwm2.value = 0
+for j in range(4):
+    pwm1.value = j/10
+    pwm2.value = j/10
     ain1.value = not ain1.value
     ain2.value = not ain2.value
     bin1.value = not bin1.value
@@ -316,10 +316,10 @@ goal_th = 0
 print(goal_x, goal_y, goal_th)
 
 #Initialise direction as forward again. (prelim wheels dont change spin direction)
-ain1.value = 1; 
-ain2.value = 0; 
-bin1.value = 1; 
-bin2.value = 0; 
+ain1.value = 1
+ain2.value = 0
+bin1.value = 1
+bin2.value = 0
 
 cost = np.inf
 
@@ -353,6 +353,8 @@ for i in range(50): #goes to goal in 300 steps or less 1 step == 1 directional c
      
     #Calculates send velocities to pwm 
     pwm1.value, pwm2.value, ain1.value, ain2.value, bin1.value, bin2.value = controller.drive(v,w,robot.wl,robot.wr) 
+    print("Directional Control Signals")
+    print([ain1.value, ain2.value, bin1.value, bin2.value]) #confirming directional control signals
     start = time.time()
     time.sleep(0.2)#move for 0.2 before calculating next
     
