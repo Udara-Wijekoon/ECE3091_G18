@@ -10,9 +10,9 @@ import gpiozero
 import time
 import numpy as np
 
-import ultrasonicFor4
-from ultrasonicFor4 import distance, distanceTrigger, GPIO_TRIGGER_FRONT, GPIO_TRIGGER_BACK
-from ultrasonicFor4 import GPIO_TRIGGER_LEFT, GPIO_TRIGGER_RIGHT, GPIO_ECHO_FRONT, GPIO_ECHO_BACK, GPIO_ECHO_LEFT, GPIO_ECHO_RIGHT
+import ultrasonicFor4new
+from ultrasonicFor4new import distance, distanceTrigger, GPIO_TRIGGER_FRONT, GPIO_TRIGGER_BACK
+from ultrasonicFor4new import GPIO_TRIGGER_LEFT, GPIO_TRIGGER_RIGHT, GPIO_ECHO_FRONT, GPIO_ECHO_BACK, GPIO_ECHO_LEFT, GPIO_ECHO_RIGHT
 from gpiozero import RotaryEncoder
 
 #Shaft , Motor Control and Robot Navigation
@@ -61,7 +61,7 @@ bin1= gpiozero.OutputDevice(pin=11) #Might change this pin
 bin2= gpiozero.OutputDevice(pin=8) #Might change this pin
 
 stby = gpiozero.OutputDevice(pin=10) #this signal was not changed in the example code/ Might change this pin
-
+stby.value = 1
 
 
 encoder1 = gpiozero.RotaryEncoder(a=5, b=6,max_steps=100000)#cretates a class for a rotaty encoder
@@ -115,21 +115,28 @@ class DiffDriveRobot: #estimates the absolute position of the robot
     def pose_update(self):
         
         self.wl = (encoder1.steps-pre_steps1)/(32*DT) #measured speed revs/s - shaft encoder is 32 bits
-        self.wr = (encoder1.steps-pre_steps1)/(32*DT)
+        self.wr = (encoder2.steps-pre_steps2)/(32*DT)
         
-        v, w = self.base_velocity(self.wl,self.wr)#returns base linear and angular velocity
+        
+        print("wl", self.wl)
+        print("DT", DT)
+        print("steps", encoder1.steps)
+        print("presteps", pre_steps1)
+        
+        
+        v, w = self.base_velocity(self.wl,self.wr)
         
         self.x = self.x + DT*v*np.cos(self.th)
         self.y = self.y + DT*v*np.sin(self.th)
         self.th = self.th + w*DT
         
-        return self.x, self.y, self.th #estimate current position
+        return self.x, self.y, self.th 
     
     
 
 class TentaclePlanner: #plans where the robot is going finds the quickest path avoiding obstacles
     
-    def __init__(self,obstacles,dt_test=0.2,steps=5,alpha=1,beta=0.1):
+    def __init__(self,obstacles,dt_test=2,steps=5,alpha=1,beta=0):
         
         self.dt = dt_test #use fake dt to plan next step
         self.steps = steps
@@ -165,22 +172,28 @@ class TentaclePlanner: #plans where the robot is going finds the quickest path a
         
         costs =[]
         
-        for v,w in self.tentacles:    
+        for v,w in self.tentacles:
+            costs.append(self.roll_out(v,w,goal_x,goal_y,goal_th,x,y,th))
         #check for colision: Ignore tentacles that have object detected on sensor
-            if (w == 1.0 & self.obstacles[1]): #left
+            if (w == 1.0 and self.obstacles[1]): #left
                 costs.append(np.inf)
-            elif (w==-1.0 & self.obstacles[2]): #right
+            if (w==-1.0 and self.obstacles[2]): #right
                 costs.append(np.inf)
-            elif(w== 0.0 & self.obstacles[0]): #front
+            if(w== 0.0 and self.obstacles[0]): #front
                 costs.append(np.inf)
-            elif(w == 0.5 & (self.obstacles[0]|self.obstacles[1])): #diag left
+            if(w == 0.5 and (self.obstacles[0] or self.obstacles[1])): #diag left
                  costs.append(np.inf)
-            elif(w == -0.5 & (self.obstacles[0]|self.obstacles[2])): #diag right
+            if(w == -0.5 and (self.obstacles[0] or self.obstacles[2])): #diag right
                 costs.append(np.inf)
-            else:
-                costs.append(self.roll_out(v,w,goal_x,goal_y,goal_th,x,y,th))
+           
+        print("costs all")
+        print(costs)
+                
+                
         
         best_idx = np.argmin(costs)
+        print("best_idx")
+        print(best_idx)
         
         return self.tentacles[best_idx]
     
@@ -200,7 +213,7 @@ class RobotController: #calculates the required duty cycles to get wheels
         
     def p_control(self,w_desired,w_measured,e_sum):
         
-        duty = min(max(-1,self.Kp*(w_desired-w_measured) + self.Ki*e_sum),1)
+        duty = min(max(-0.2,self.Kp*(w_desired-w_measured) + self.Ki*e_sum),0.2)
         
         if duty < 0: #Ensures duty cycle is between 0 and 1 
             duty_cycle = np.abs(duty) #reverse direction
@@ -228,7 +241,6 @@ class RobotController: #calculates the required duty cycles to get wheels
 
 
 
-
 #Mini Function Made By Audry
 def distanceTF(GPIO_TRIGGER,GPIO_ECHO):
     
@@ -243,12 +255,11 @@ def distanceTF(GPIO_TRIGGER,GPIO_ECHO):
 # and reads from a rotary encoder. Parameters aren't tuned or properly set-up at all.
 #to do! - Assign theese to correct pins
 
-
 # Step through duty cycle values, slowly increasing the speed and changing the direction of motion
 
 
-prestep1 = 0
-presteps2 = 0
+pre_steps1 = 0
+pre_steps2 = 0
 
 #Initialise direction as forward
 ain1.value = 1; 
@@ -261,41 +272,45 @@ pre_steps1 = encoder1.steps
 pre_steps2 = encoder2.steps
 
 
-for j in range(10):
-    pwm1.value = j/10
-    pwm2.value = j/10
+
+
+for j in range(2):
+    pwm1.value = 0
+    pwm2.value = 0
     ain1.value = not ain1.value
     ain2.value = not ain2.value
     bin1.value = not bin1.value
     bin2.value = not bin2.value
     print('Duty cycle:',pwm1.value,'Direction:',ain1.value)
     print('Duty cycle:',pwm2.value,'Direction:',bin2.value)
-    time.sleep(5.0) #*********
-    print('Counter:',encoder1.steps,'Speed:',(encoder1.steps-pre_steps1)/(32*5.0),'revs per second\n')
-    print('Counter:',encoder2.steps,'Speed:',(encoder2.steps-pre_steps2)/(32*5.0),'revs per second\n')
+    time.sleep(2.0) #*********
+    print('Counter:',encoder1.steps,'Speed:',(encoder1.steps-pre_steps1)/(32*10.0),'revs per second\n')
+    print('Counter:',encoder2.steps,'Speed:',(encoder2.steps-pre_steps2)/(32*10.0),'revs per second\n')
     pre_steps1 = encoder1.steps
     pre_steps2 = encoder2.steps
     
 #NB, if steps keeps increasing, what about integer overflows?
     
-    
+ 
+ 
 
 #TEST 2: MOVE TOWARDS SPECIFIED GOAL----------------
 #TO DO - PUT IN CORRECT ROBOT PARAMETERS
-
+pwm1.value = 0
+pwm2.value = 0
 start = 0
 DT = 0.1 #This updates per iteration
 
 obstacles = [False,False,False,False] #Front, Left, Right, Back
 
-robot = DiffDriveRobot(inertia=5, drag=1, wheel_radius=0.05, wheel_sep=0.15) #INITIALISE ROBOT AND PARAMETERS
-controller = RobotController(Kp=1,Ki=0.25,wheel_radius=0.05,wheel_sep=0.15)
-planner = TentaclePlanner(obstacles = obstacles,steps=5,alpha=1,beta=1e-5)
+robot = DiffDriveRobot(inertia=0, drag=0, wheel_radius=2.65, wheel_sep=10.2) #INITIALISE ROBOT AND PARAMETERS
+controller = RobotController(Kp=1,Ki=0.25,wheel_radius=2.65,wheel_sep=10.2)
+planner = TentaclePlanner(obstacles = obstacles,steps=5,alpha=0.5,beta=0)
 
 
 #CODE TO CONTROL ROBOT MOTION BASED ON GOAL POSITION X, Y and THETA
-goal_x = 20
-goal_y = 20
+goal_x = 40
+goal_y = 0
 goal_th = 0
 
 print(goal_x, goal_y, goal_th)
@@ -306,43 +321,53 @@ ain2.value = 0;
 bin1.value = 1; 
 bin2.value = 0; 
 
+cost = np.inf
 
-for i in range(300): #goes to goal in 300 steps or less 1 step == 1 directional change ~0.1s
+for i in range(50): #goes to goal in 300 steps or less 1 step == 1 directional change ~0.2s
     
     #TO DO! check for obstacles and update detected obstacles
     Boolfront = distanceTF(GPIO_TRIGGER_FRONT,GPIO_ECHO_FRONT)
     Boolleft = distanceTF(GPIO_TRIGGER_LEFT,GPIO_ECHO_LEFT)
     Boolright = distanceTF(GPIO_TRIGGER_RIGHT,GPIO_ECHO_RIGHT)
-    Boolback = distanceTF(GPIO_TRIGGER_BACK,GPIO_ECHO_BACK)
+    #Boolback = distanceTF(GPIO_TRIGGER_BACK,GPIO_ECHO_BACK)
     #--------------checking for obstacles
     
-    obstacles = [Boolfront, Boolleft, Boolright, Boolback] #updating current obstacles
+    obstacles = [Boolfront, Boolleft, Boolright, False] #updating current obstacles
+    
+    print(obstacles)
     
     
-    v,w = planner.plan(goal_x,goal_y,goal_th,robot.x,robot.y,robot.th) #Calculates required direction to get to goal v, w 
+    v,w = planner.plan(goal_x,goal_y,goal_th,robot.x,robot.y,robot.th) #Calculates required direction to get to goal v, w
+    print(v,w)
     
-    #go in that direction. send pwm signal Keep travelling (0.1s)
-    pre_steps1 = encoder1.steps #how many encoder steps have we taken at the end of the step
-    pre_steps2 = encoder2.steps
+    #go in that direction. send pwm signal Keep travelling (0.1s
     end = time.time()
     
     if i>0: #update robot position after first iteration
         DT = end - start
-        x,y,th = robot.pose_update() #simulate robot movement, update position, no arguments as reads off encoders. 
+        robot.x,robot.y,robot.th = robot.pose_update() #simulate robot movement, update position, no arguments
+        presteps_1 = encoder1.steps
+        prestep_2 = encoder2.steps
+        print("current position")
+        print(robot.x,robot.y,robot.th)#as reads off encoders. 
      
     #Calculates send velocities to pwm 
     pwm1.value, pwm2.value, ain1.value, ain2.value, bin1.value, bin2.value = controller.drive(v,w,robot.wl,robot.wr) 
-    start = time.time() #START TIMER
-    time.sleep(0.1)#move for 0.1 before calculating next route
-
-    cost = robot.rollout(v,w,goal_x,goal_y,goal_th,x,y,th) #returns how far off the final goal we are 
+    start = time.time()
+    time.sleep(0.2)#move for 0.2 before calculating next
     
-    if (-0.001 < cost < 0.001):
+    cost = planner.roll_out(v, w, goal_x, goal_y, goal_th, robot.x, robot.y, robot.th)
+    print(cost)
+         
+    
+    if (-80 < cost <80):
+        print("reached goal")
         break #stop moving when we are close enough to our goal
+    
     
 pwm1.value, pwm2.value = 0,0 #stop robot after 300 steps (30s) or if we reach out final goal
 
-
+stby.value = 0; #turn off motor driver
 #TO DO! find a way to calibrate robot posision using computer vision of US avoid error building up
 
 
