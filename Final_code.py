@@ -5,7 +5,6 @@ Created on Mon Aug 23 13:11:53 2021
 
 @author: nikkihobman
 """
-
 import gpiozero
 import time
 import numpy as np
@@ -30,7 +29,6 @@ from gpiozero import RotaryEncoder
 #5) rotate motor using PWM Signal
 
 
-
 #INPUTS TO MOTOR CONTROLLER
 #-PWM1 (Speed1) PIN 11
 #-PWM2 (Speed2) PIN 15
@@ -52,7 +50,6 @@ global pre_steps2
 pwm1 = gpiozero.PWMOutputDevice(pin=12,active_high=True,initial_value=0,frequency=1000) #creates a class of PWM output
 pwm2 = gpiozero.PWMOutputDevice(pin=13,active_high=True,initial_value=0,frequency=1000) #creates a class of PWM output
 
-
 #Might need to change theese pin assignments
 #in1 and in2 control the directions for the wheels
 ain1= gpiozero.OutputDevice(pin=17) 
@@ -62,7 +59,6 @@ bin2= gpiozero.OutputDevice(pin=8) #Might change this pin
 
 stby = gpiozero.OutputDevice(pin=10) #this signal was not changed in the example code/ Might change this pin
 stby.value = 1
-
 
 encoder1 = gpiozero.RotaryEncoder(a=5, b=6,max_steps=100000)#cretates a class for a rotaty encoder
 encoder2 = gpiozero.RotaryEncoder(a=26, b=16,max_steps=100000)
@@ -77,10 +73,7 @@ encoder2 = gpiozero.RotaryEncoder(a=26, b=16,max_steps=100000)
 #Connect A and B directly to two GPIO pins, and C (“common”) to one of the ground pins on your Pi.
 # Then simply specify the A and B pins as the arguments when constructing this classs
 
-
-
-
-
+global MAX_W #MAXIMUM WHEEL SPEED in revs/s
 
 #Classes: ---------
 class DiffDriveRobot: #estimates the absolute position of the robot
@@ -136,12 +129,14 @@ class DiffDriveRobot: #estimates the absolute position of the robot
 
 class TentaclePlanner: #plans where the robot is going finds the quickest path avoiding obstacles
     
-    def __init__(self,obstacles,dt_test=2,steps=5,alpha=1,beta=0):
+    def __init__(self,obstacles,dt_test=0.2,steps=5,alpha=1,beta=0):
         
         self.dt = dt_test #use fake dt to plan next step
         self.steps = steps
         # Tentacles are possible trajectories to follow
-        self.tentacles = [(0.0,1.0),(0.0,-1.0),(0.1,1.0),(0.1,-1.0),(0.1,0.5),(0.1,-0.5),(0.1,0.0),(0.0,0.0)]
+        self.tentacles = [(0.0,1.0),(0.0,-1.0),(3.0,1.0),(3.0,-1.0),(3.0,0.5),(3.0,-0.5),(3.0,0.0),(0.0,0.0)] #this is in cm/s
+        #V is in cm/s
+        #W in rad/s
         
         self.alpha = alpha
         self.beta = beta
@@ -153,9 +148,9 @@ class TentaclePlanner: #plans where the robot is going finds the quickest path a
         
         for j in range(self.steps):
         
-            x = x + self.dt*v*np.cos(th)
-            y = y + self.dt*v*np.sin(th)
-            th = (th + w*self.dt)
+            x = x + self.dt*v*np.cos(th) #CM
+            y = y + self.dt*v*np.sin(th) #CM
+            th = (th + w*self.dt) #CM
             
         
         # Wrap angle error -pi,pi
@@ -213,26 +208,16 @@ class RobotController: #calculates the required duty cycles to get wheels
         
     def p_control(self,w_desired,w_measured,e_sum):
         
-        duty = min(max(-0.2,self.Kp*(w_desired-w_measured) + self.Ki*e_sum),0.2)
-        
-        if duty < 0: #Ensures duty cycle is between 0 and 1 
-            duty_cycle = np.abs(duty) #reverse direction
-            in1 = 0
-            in2 = 1 
-        else:
-            duty_cycle = duty #forward direction
-            in1 = 1
-            in2 = 0
-        
-        e_sum = e_sum + (w_desired-w_measured)
-        
+        duty_cycle = min(max(0, w_desired/MAX_W),0.5)
+        #e_sum = e_sum + (w_desired-w_measured)
+        in1 = 1
+        in2 = 0
         return duty_cycle, e_sum, in1, in2 #now returns wheel directional control
         
-        
     def drive(self,v_desired,w_desired,wl,wr):
-        
-        wl_desired = v_desired/self.r + self.l*w_desired/2 
-        wr_desired = v_desired/self.r - self.l*w_desired/2
+        #v_desired in cm/s
+        wl_desired = v_desired/self.r + self.l*w_desired/2 #wl_desired in revs/s
+        wr_desired = v_desired/self.r - self.l*w_desired/2 #wr_desired in revs/s
         
         duty_cycle_l,self.e_sum_l, ain1, ain2 = self.p_control(wl_desired,wl,self.e_sum_l)
         duty_cycle_r,self.e_sum_r, bin1, bin2 = self.p_control(wr_desired,wr,self.e_sum_r)
@@ -272,8 +257,6 @@ pre_steps1 = encoder1.steps
 pre_steps2 = encoder2.steps
 
 
-
-
 for j in range(4):
     pwm1.value = j/10
     pwm2.value = j/10
@@ -283,23 +266,22 @@ for j in range(4):
     bin2.value = not bin2.value
     print('Duty cycle:',pwm1.value,'Direction:',ain1.value)
     print('Duty cycle:',pwm2.value,'Direction:',bin2.value)
-    time.sleep(2.0) #*********
-    print('Counter:',encoder1.steps,'Speed:',(encoder1.steps-pre_steps1)/(32*10.0),'revs per second\n')
-    print('Counter:',encoder2.steps,'Speed:',(encoder2.steps-pre_steps2)/(32*10.0),'revs per second\n')
+    time.sleep(5.0) #*********
+    print('Counter:',encoder1.steps,'Speed:',(encoder1.steps-pre_steps1)/(32*5.0),'revs per second\n')
+    print('Counter:',encoder2.steps,'Speed:',(encoder2.steps-pre_steps2)/(32*5.0),'revs per second\n')
     pre_steps1 = encoder1.steps
     pre_steps2 = encoder2.steps
     
 #NB, if steps keeps increasing, what about integer overflows?
     
- 
- 
-
 #TEST 2: MOVE TOWARDS SPECIFIED GOAL----------------
 #TO DO - PUT IN CORRECT ROBOT PARAMETERS
 pwm1.value = 0
 pwm2.value = 0
 start = 0
 DT = 0.1 #This updates per iteration
+
+MAX_W = 3 #THIS IS THE MAXIMUM WHEEL SPEED IN REVS/S NEED TO MEASURE!!!
 
 obstacles = [False,False,False,False] #Front, Left, Right, Back
 
@@ -353,6 +335,8 @@ for i in range(50): #goes to goal in 300 steps or less 1 step == 1 directional c
      
     #Calculates send velocities to pwm 
     pwm1.value, pwm2.value, ain1.value, ain2.value, bin1.value, bin2.value = controller.drive(v,w,robot.wl,robot.wr) 
+    #robot.wl and robot.wr in revs/s.
+    
     print("Directional Control Signals")
     print([ain1.value, ain2.value, bin1.value, bin2.value]) #confirming directional control signals
     start = time.time()
