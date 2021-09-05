@@ -16,19 +16,6 @@ from gpiozero import RotaryEncoder
 
 #Shaft , Motor Control and Robot Navigation
 
-#STEPS
-# 1) SET UP SHAFT ENCODER DONE
-#i) Set Microcontroller pins in code
-#ii)  Write PWM to shaft encoder DONE
-#iii)  Get speed from shaft encoder DONE
-
-
-#2) Write Fucntions that take input arguments relative position
-#3) Distance and Angle
-#4) Calculate velocity of each tier to make turn
-#5) rotate motor using PWM Signal
-
-
 #INPUTS TO MOTOR CONTROLLER
 #-PWM1 (Speed1) PIN 11
 #-PWM2 (Speed2) PIN 15
@@ -69,10 +56,6 @@ encoder2 = gpiozero.RotaryEncoder(a=26, b=16,max_steps=100000)
 #We are using a 32-bit encoder (32 steps / revolution)
 
 
-#These devices typically have three pins labelled “A”, “B”, and “C”. 
-#Connect A and B directly to two GPIO pins, and C (“common”) to one of the ground pins on your Pi.
-# Then simply specify the A and B pins as the arguments when constructing this classs
-
 global MAX_W #MAXIMUM WHEEL SPEED in revs/s
 
 #Classes: ---------
@@ -89,7 +72,6 @@ class DiffDriveRobot: #estimates the absolute position of the robot
         
         self.I = inertia
         self.d = drag
-     
         
         self.r = wheel_radius
         self.l = wheel_sep
@@ -98,7 +80,7 @@ class DiffDriveRobot: #estimates the absolute position of the robot
     # Veclocity motion model
     def base_velocity(self,wl,wr):
         
-        v = (wl*self.r + wr*self.r)/2.0
+        v = (wl*self.r + wr*self.r)/2.0 
         
         w = (wl - wr)/self.l
         
@@ -107,16 +89,9 @@ class DiffDriveRobot: #estimates the absolute position of the robot
     # Kinematic motion model
     def pose_update(self):
         
-        self.wl = (encoder1.steps-pre_steps1)/(32*DT) #measured speed revs/s - shaft encoder is 32 bits
-        self.wr = (encoder2.steps-pre_steps2)/(32*DT)
-        
-        
-        print("wl", self.wl)
-        print("DT", DT)
-        print("steps", encoder1.steps)
-        print("presteps", pre_steps1)
-        
-        
+        self.wl = 2*np.pi*(encoder1.steps-pre_steps1)/(32*DT) #measured speed rad/s - shaft encoder is 32 bits
+        self.wr = 2*np.pi*(encoder2.steps-pre_steps2)/(32*DT) 
+       
         v, w = self.base_velocity(self.wl,self.wr)
         
         self.x = self.x + DT*v*np.cos(self.th)
@@ -126,41 +101,33 @@ class DiffDriveRobot: #estimates the absolute position of the robot
         return self.x, self.y, self.th 
     
     
-
 class TentaclePlanner: #plans where the robot is going finds the quickest path avoiding obstacles
     
-    def __init__(self,obstacles,dt_test=0.2,steps=5,alpha=1,beta=0):
+    def __init__(self,obstacles,dt=0.1,steps=5,alpha=1,beta=0.1):
         
-        self.dt = dt_test #use fake dt to plan next step
+        self.dt = dt
         self.steps = steps
         # Tentacles are possible trajectories to follow
-        self.tentacles = [(0.0,1.0),(0.0,-1.0),(3.0,1.0),(3.0,-1.0),(3.0,0.5),(3.0,-0.5),(3.0,0.0),(0.0,0.0)] #this is in cm/s
-        #V is in cm/s
-        #W in rad/s
+        self.tentacles = [(0.0,0.5),(0.0,-0.5),(0.1,1.0),(0.1,-1.0),(0.1,0.5),(0.1,-0.5),(0.1,0.0),(0.0,0.0)]*100 #Factor of 100 gets us to cm/s
+        self.obstacles = obstacles
         
         self.alpha = alpha
         self.beta = beta
-        
-        self.obstacles = obstacles
     
     # Play a trajectory and evaluate where you'd end up
     def roll_out(self,v,w,goal_x,goal_y,goal_th,x,y,th):
         
         for j in range(self.steps):
         
-            x = x + self.dt*v*np.cos(th) #CM
-            y = y + self.dt*v*np.sin(th) #CM
-            th = (th + w*self.dt) #CM
-            
+            x = x + self.dt*v*np.cos(th)
+            y = y + self.dt*v*np.sin(th)
+            th = (th + w*self.dt)
         
-        # Wrap angle error -pi,pi
         e_th = goal_th-th
         e_th = np.arctan2(np.sin(e_th),np.cos(e_th))
         
-        cost = self.alpha*((goal_x-x)**2 + (goal_y-y)**2) + self.beta*(e_th**2)
-        
-        return cost
-        
+        return self.alpha*((goal_x-x)**2 + (goal_y-y)**2) + self.beta*(e_th**2)
+          
     
     # Choose trajectory that will get you closest to the goal
     def plan(self,goal_x,goal_y,goal_th,x,y,th):
@@ -174,7 +141,7 @@ class TentaclePlanner: #plans where the robot is going finds the quickest path a
                 costs.append(np.inf)
             if (w==-1.0 and self.obstacles[2]): #right
                 costs.append(np.inf)
-            if(w== 0.0 and self.obstacles[0]): #front
+            if(w== 0.0 and v>0 and self.obstacles[0]): #front
                 costs.append(np.inf)
             if(w == 0.5 and (self.obstacles[0] or self.obstacles[1])): #diag left
                  costs.append(np.inf)
@@ -182,6 +149,7 @@ class TentaclePlanner: #plans where the robot is going finds the quickest path a
                 costs.append(np.inf)
            
         print("costs all")
+        print(obstacles)
         print(costs)
                 
                 
@@ -197,7 +165,7 @@ class TentaclePlanner: #plans where the robot is going finds the quickest path a
 class RobotController: #calculates the required duty cycles to get wheels 
 #turning at the required speed to go in the required direction
     
-    def __init__(self,Kp=0.1,Ki=0.01,wheel_radius=0.02, wheel_sep=0.1):
+    def __init__(self,Kp=0.1,Ki=0.01,wheel_radius=2.6, wheel_sep=3):
         
         self.Kp = Kp
         self.Ki = Ki
@@ -206,16 +174,28 @@ class RobotController: #calculates the required duty cycles to get wheels
         self.e_sum_l = 0
         self.e_sum_r = 0
         
-    def p_control(self,w_desired,w_measured,e_sum):
+     def p_control(self,w_desired,w_measured,e_sum):
         
-        duty_cycle = min(max(0, w_desired/MAX_W),0.5)
-        #e_sum = e_sum + (w_desired-w_measured)
-        in1 = 1
-        in2 = 0
+        duty_cycle = min(max(0,self.Kp*(w_desired-w_measured/self.r) + self.Ki*e_sum),0.5)
+        
+            in1 = 1
+            in2 = 0
+        
+        if(w_desired <0):
+            
+            duty_cycle = np.abs(duty_cycle)
+            in1 = 0 
+            in2 = 1
+        
+        e_sum = e_sum + (w_desired-w_measured/self.r)
+        
+        print('desired', w_desired)
+        print('mesasured' , w_measured) 
+        
         return duty_cycle, e_sum, in1, in2 #now returns wheel directional control
         
     def drive(self,v_desired,w_desired,wl,wr):
-        #v_desired in cm/s
+        #v_desired in rad/s
         wl_desired = v_desired/self.r + self.l*w_desired/2 #wl_desired in revs/s
         wr_desired = v_desired/self.r - self.l*w_desired/2 #wr_desired in revs/s
         
@@ -257,13 +237,9 @@ pre_steps1 = encoder1.steps
 pre_steps2 = encoder2.steps
 
 
-for j in range(4):
-    pwm1.value = j/10
-    pwm2.value = j/10
-    ain1.value = not ain1.value
-    ain2.value = not ain2.value
-    bin1.value = not bin1.value
-    bin2.value = not bin2.value
+for j in range(2):
+    pwm1.value = j/1
+    pwm2.value = j/1
     print('Duty cycle:',pwm1.value,'Direction:',ain1.value)
     print('Duty cycle:',pwm2.value,'Direction:',bin2.value)
     time.sleep(5.0) #*********
@@ -306,6 +282,7 @@ bin2.value = 0
 cost = np.inf
 
 for i in range(50): #goes to goal in 300 steps or less 1 step == 1 directional change ~0.2s
+    print("")
     
     #TO DO! check for obstacles and update detected obstacles
     Boolfront = distanceTF(GPIO_TRIGGER_FRONT,GPIO_ECHO_FRONT)
@@ -315,11 +292,12 @@ for i in range(50): #goes to goal in 300 steps or less 1 step == 1 directional c
     #--------------checking for obstacles
     
     obstacles = [Boolfront, Boolleft, Boolright, False] #updating current obstacles
-    
+    print("ob_main")
     print(obstacles)
     
-    
+   
     v,w = planner.plan(goal_x,goal_y,goal_th,robot.x,robot.y,robot.th) #Calculates required direction to get to goal v, w
+    print("v,w")
     print(v,w)
     
     #go in that direction. send pwm signal Keep travelling (0.1s
@@ -339,6 +317,7 @@ for i in range(50): #goes to goal in 300 steps or less 1 step == 1 directional c
     
     print("Directional Control Signals")
     print([ain1.value, ain2.value, bin1.value, bin2.value]) #confirming directional control signals
+    print("PWM", pwm1.value, pwm2.value)
     start = time.time()
     time.sleep(0.2)#move for 0.2 before calculating next
     
@@ -346,7 +325,7 @@ for i in range(50): #goes to goal in 300 steps or less 1 step == 1 directional c
     print(cost)
          
     
-    if (-80 < cost <80):
+    if (-10< cost <10):
         print("reached goal")
         break #stop moving when we are close enough to our goal
     
