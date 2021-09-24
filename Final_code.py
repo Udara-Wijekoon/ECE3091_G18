@@ -112,10 +112,10 @@ class DiffDriveRobot: #estimates the absolute position of the robot
         
         
         print('steps:', encoder1.steps, encoder2.steps)
-        print('pre steps:', encoder1.steps, encoder2.steps)
+        print('pre steps:', pre_steps1, pre_steps2)
         
-        self.wl = (encoder1.steps-pre_steps1)/(4*np.pi*32*DT) #measured speed cm/s - shaft encoder is 32 bits
-        self.wr = (encoder2.steps-pre_steps2)/(4*np.pi*32*DT)
+        self.wl = (encoder1.steps-pre_steps1)/(np.pi*32*DT) #measured speed cm/s - shaft encoder is 32 bits
+        self.wr = (encoder2.steps-pre_steps2)/(np.pi*32*DT)
         
         print('w:', "{:e}".format(self.wr), "{:e}".format(self.wl))
         
@@ -132,7 +132,7 @@ class DiffDriveRobot: #estimates the absolute position of the robot
 
 class TentaclePlanner: #plans where the robot is going finds the quickest path avoiding obstacles
     
-    def __init__(self,obstacles,dt_test=0.2,steps=5,alpha=1,beta=0.1):
+    def __init__(self,obstacles,dt_test=0.01,steps=5,alpha=1,beta=0.1):
         
         self.dt = dt_test #use fake dt to plan next step
         self.steps = steps
@@ -140,7 +140,7 @@ class TentaclePlanner: #plans where the robot is going finds the quickest path a
         self.tentacles = [(0.0,1.0),(0.0,-1.0),(0.1,1.0),(0.1,-1.0),(0.1,0.5),(0.1,-0.5),(0.1,0.0),(0.0,0.0)]
         
         for i,  (v, w) in enumerate(self.tentacles):
-            self.tentacles[i] = 100*v, 100*w
+            self.tentacles[i] = 100*v, 200*w
         
         self.alpha = alpha
         self.beta = beta
@@ -177,23 +177,24 @@ class TentaclePlanner: #plans where the robot is going finds the quickest path a
             cost = self.roll_out(v,w,goal_x,goal_y,goal_th,x,y,th)
             
             #print('cost', cost)
-            print("obstacles:", self.obstacles)
+            #print("obstacles:", self.obstacles)
             
-            if (w > 1.0 and self.obstacles[1]): #left
+            if (w >= 1.0 and self.obstacles[1]): #left
                 cost = np.inf
-            if (w < -1.0 and self.obstacles[2]): #right
+            if (w <= -1.0 and self.obstacles[2]): #right
                 cost = np.inf
             if (w == 0.0 and self.obstacles[0]): #front
                cost = np.inf
-            if (1.0*100 > w > 0.5*100 and (self.obstacles[0]|self.obstacles[1])): #diag left
+            if (0.1*100 <= w <= 0.5*200 and (self.obstacles[0] or self.obstacles[1])): #diag left
                 cost = np.inf
-            if (-1.0*100 < w < -0.5*100 and (self.obstacles[0]|self.obstacles[2])): #diag right
+            if (-0.1*100 >= w >= -0.5*200 and (self.obstacles[0] or self.obstacles[2])): #diag right
                 cost = np.inf
     
             costs.append(cost)
         
         best_idx = np.argmin(costs)
         print("costs:", costs)
+        print("best route:", self.tentacles[best_idx])
         
         return self.tentacles[best_idx]
     
@@ -213,7 +214,7 @@ class RobotController: #calculates the required duty cycles to get wheels
         
     def p_control(self,w_desired,w_measured,e_sum):
         
-        duty_cycle = min(max(0,self.Kp*(w_desired-w_measured) + self.Ki*e_sum),0.2)
+        duty_cycle = min(max(0,self.Kp*(w_desired-w_measured) + self.Ki*e_sum),0.35)
         
         in1 = 1
         in2 = 0
@@ -302,7 +303,7 @@ obstacles = [False,False,False,False] #Front, Left, Right, Back
 
 robot = DiffDriveRobot(inertia=5, drag=1, wheel_radius=2.75, wheel_sep=10.5) #INITIALISE ROBOT AND PARAMETERS
 controller = RobotController(Kp=1,Ki=0.25,wheel_radius=2.75,wheel_sep=10.5)
-planner = TentaclePlanner(obstacles = obstacles,steps=5,alpha=1,beta=1e-5)
+planner = TentaclePlanner(obstacles = obstacles,steps=5,alpha=1,beta=0.1)
 
 
 #CODE TO CONTROL ROBOT MOTION BASED ON GOAL POSITION X, Y and THETA
@@ -327,6 +328,7 @@ pre_steps2 = 0
 
 for i in range(300): #goes to goal in 300 steps or less 1 step == 1 directional change ~0.1s
     print("start")
+    print("time:", 0.1*i)
     
     costs = []
     
@@ -363,11 +365,13 @@ for i in range(300): #goes to goal in 300 steps or less 1 step == 1 directional 
     start = time.time() #START TIMER
     time.sleep(0.1)#move for 0.1 before calculating next route
 
-    cost = planner.roll_out(v,w,goal_x,goal_y,goal_th,robot.x,robot.y,robot.th) #returns how far off the final goal we are
-    print(cost)
+    how_far = np.sqrt((goal_x-robot.x)**2 + (goal_y - robot.y)**2)  #returns how far off the final goal we are
+    print("how_far", how_far)
     
-    if (-50 < cost < 50):
+    if (-1 < how_far < 1):
+        print("reached goal")
         break #stop moving when we are close enough to our goal
+        
     
 pwm1.value, pwm2.value = 0,0 #stop robot after 300 steps (30s) or if we reach out final goal
 
