@@ -307,6 +307,9 @@ planner = TentaclePlanner(obstacles = obstacles,steps=5,alpha=1,beta=0.1)
 
 
 #CODE TO CONTROL ROBOT MOTION BASED ON GOAL POSITION X, Y and THETA
+
+
+# Important Note: Need to include this in a function so that master code can access it ~ Neerav
 goal_x = 30
 goal_y = 0
 goal_th = 0
