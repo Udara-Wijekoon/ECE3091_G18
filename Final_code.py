@@ -137,7 +137,7 @@ class TentaclePlanner: #plans where the robot is going finds the quickest path a
         self.dt = dt_test #use fake dt to plan next step
         self.steps = steps
         # Tentacles are possible trajectories to follow
-        self.tentacles = [(0.0,1.0),(0.0,-1.0),(0.1,1.0),(0.1,-1.0),(0.1,0.5),(0.1,-0.5),(0.1,0.0),(0.0,0.0)]
+        self.tentacles = [(0.0,1.0),(0.0,-1.0),(0.1,1.0),(0.1,-1.0),(0.1,0.5),(0.1,-0.5),(0.1,0.0)]#got rid of 00 tentacle
         
         for i,  (v, w) in enumerate(self.tentacles):
             self.tentacles[i] = 100*v, 200*w
@@ -183,7 +183,7 @@ class TentaclePlanner: #plans where the robot is going finds the quickest path a
                 cost = np.inf
             if (w <= -1.0 and self.obstacles[2]): #right
                 cost = np.inf
-            if (w == 0.0 and self.obstacles[0]): #front
+            if (v >= 1.0 and self.obstacles[0]): #front
                cost = np.inf
             if (0.1*100 <= w <= 0.5*200 and (self.obstacles[0] or self.obstacles[1])): #diag left
                 cost = np.inf
@@ -307,9 +307,6 @@ planner = TentaclePlanner(obstacles = obstacles,steps=5,alpha=1,beta=0.1)
 
 
 #CODE TO CONTROL ROBOT MOTION BASED ON GOAL POSITION X, Y and THETA
-
-
-# Important Note: Need to include this in a function so that master code can access it ~ Neerav
 goal_x = 30
 goal_y = 0
 goal_th = 0
