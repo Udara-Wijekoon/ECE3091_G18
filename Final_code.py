@@ -134,15 +134,15 @@ class DiffDriveRobot: #estimates the absolute position of the robot
 
 class TentaclePlanner: #plans where the robot is going finds the quickest path avoiding obstacles
     
-    def __init__(self,obstacles,dt_test=0.1,steps=5,alpha=1,beta=0.1):
+    def __init__(self,obstacles,dt_test=0.05,steps=5,alpha=1,beta=0.1):
         
         self.dt = dt_test #use fake dt to plan next step
         self.steps = steps
         # Tentacles are possible trajectories to follow
-        self.tentacles = [(0.1,1.0),(0.1,-1.0),(0.1,0.0)]#right left front back
+        self.tentacles = [(0.1,1.0),(0.1,-1.0),(0.1,0.0), (0.0, -1.0), (0.0, 1.0)]#right left front back
         
         for i,  (v, w) in enumerate(self.tentacles):
-            self.tentacles[i] = 0.5*v, 1.5*w
+            self.tentacles[i] = 4*v, 0.8*w
         
         self.alpha = alpha
         self.beta = beta
@@ -181,12 +181,15 @@ class TentaclePlanner: #plans where the robot is going finds the quickest path a
             #print('cost', cost)
             #print("obstacles:", self.obstacles)
             
+            if (v > 0 and seld.obstacles[0[): #front: can only turn left or right
+               cost = np.inf
             if (w > 0 and self.obstacles[1]): #left
-                cost = np.inf
+               cost = np.inf
             if (w < -0 and self.obstacles[2]): #right
-                cost = np.inf
+               cost = np.inf
             if (v > 0 and w == 0 and self.obstacles[0]): #front
                cost = np.inf
+                                           
 #             if (0.1*100 <= w <= 0.5*200 and (self.obstacles[0] or self.obstacles[1])): #diag left
 #                 cost = np.inf
 #             if (-0.1*100 >= w >= -0.5*200 and (self.obstacles[0] or self.obstacles[2])): #diag right
@@ -216,18 +219,16 @@ class RobotController: #calculates the required duty cycles to get wheels
         
     def p_control(self,w_desired,w_measured,e_sum):
         
-        duty_cycle = min(max(0,self.Kp*(w_desired-w_measured) + self.Ki*e_sum),0.35)
+        duty_cycle = min(max(0,np.abs(self.Kp*(w_desired-w_measured) + self.Ki*e_sum)),0.4)
         
-        in1 = 1
-        in2 = 0
-        
+            in1 = 1
+            in2 = 0
         
         if w_desired < 0:
             
             in1 = 0
             in2 = 1
-            duty_cycle = 0.35
-    
+                                      
         
         e_sum = e_sum + (w_desired-w_measured)
         
@@ -239,41 +240,11 @@ class RobotController: #calculates the required duty cycles to get wheels
         
     def drive(self,v_d,w_d,wl,wr):
         
-#         wl_desired = v_desired/self.r + self.l*w_desired/2 
-#         wr_desired = v_desired/self.r - self.l*w_desired/2
-#         
-#         duty_cycle_l,self.e_sum_l, ain1, ain2 = self.p_control(wl_desired,wl,self.e_sum_l)
-#         duty_cycle_r,self.e_sum_r, bin1, bin2 = self.p_control(wr_desired,wr,self.e_sum_r)
-        duty_cycle_l = 0.26
-        duty_cycle_r = 0.26
-        
-        if (v_d >0): #forward
-            ain1 = 1
-            bin1 = 1
-            ain2 = 0
-            bin2 = 0
-            
-        if (v_d <0): #back
-            ain1 = 0
-            bin1 = 0
-            ain2 = 1
-            bin2 = 1
-            
-        if (w_d>0): #right
-            
-            ain1 = 1
-            bin1 = 0
-            ain2 = 0
-            bin2 = 1
-            
-                    
-        if (w_d<0): #left
-            
-            ain1 = 0
-            bin1 = 1
-            ain2 = 1
-            bin2 = 0     
-            
+         wl_desired = v_desired + self.l*w_desired/2 
+         wr_desired = v_desired - self.l*w_desired/2
+         
+        duty_cycle_l,self.e_sum_l, ain1, ain2 = self.p_control(wl_desired,wl,self.e_sum_l)
+        duty_cycle_r,self.e_sum_r, bin1, bin2 = self.p_control(wr_desired,wr,self.e_sum_r)
         
         return duty_cycle_l, duty_cycle_r, ain1, ain2, bin1, bin2  #speed and direction control
 
@@ -402,8 +373,18 @@ for i in range(600): #goes to goal in 300 steps or less 1 step == 1 directional 
     pwm1.value, pwm2.value, ain1.value, ain2.value, bin1.value, bin2.value = controller.drive(v,w,robot.wl,robot.wr) 
     start = time.time() #START TIMER
     time.sleep(0.05)#move for 0.1 before calculating next route
-    if(obstacles[0]or obstacles[1] or obstacles[2] or obstacles[3]):
-        time.sleep(1.5)#Keep turning
+    
+    #ADD SOME MORE CODE TO MAKE THIS PART 
+    
+    if(obstacles[0]):#force the robot to turn left 90 degrees if there is an obstacle then move forward 5cm
+        w_start = robot.th
+        while (np.abs(robot.th - w_start)<1.57): 
+            #keep turning for 90 degrees. 
+        x_start = robot.x, y_start = robot.y:  
+        while ((np.sqrt(((x_start - robot.x )**2 + (y_start - robot.y)**2)<5): 
+                #change controls with p_control function when feedback is ready
+            pwm1.value, pwm2.value, ain1.value, ain2.value, bin1.value, bin2.value = controller.drive(4, 0,robot.wl,robot.wr)
+            
 
     how_far = np.sqrt((goal_x-robot.x)**2 + (goal_y - robot.y)**2)  #returns how far off the final goal we are
     print("how_far", how_far)
