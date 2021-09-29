@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 """
 Created on Mon Aug 23 13:11:53 2021
-
 @author: nikkihobman
 """
 
@@ -113,20 +112,20 @@ class DiffDriveRobot: #estimates the absolute position of the robot
     def pose_update(self):
         
         
-        print('steps:', encoder1.steps, encoder2.steps)
-        print('pre steps:', pre_steps1, pre_steps2)
         
-        self.wl = 1.15*(encoder1.steps-pre_steps1)/(np.pi*32*DT) #measured speed cm/s - shaft encoder is 32 bits
-        self.wr = 1.15*(encoder2.steps-pre_steps2)/(np.pi*32*DT)
+        self.wl = 2.1*(encoder1.steps-pre_steps1)/(np.pi*32*0.018) #measured speed cm/s - shaft encoder is 32 bits
+        self.wr = 2.1*(encoder2.steps-pre_steps2)/(np.pi*32*0.018)
         
-        print('w:', "{:e}".format(self.wr), "{:e}".format(self.wl))
+        print('w:', self.wr, self.wl)
+        print(encoder1.steps)
+        print(pre_steps1)
         
         
-        v, w = self.base_velocity(self.wl,self.wr)#returns base linear and angular velocity
+        vp, wp = self.base_velocity(self.wl,self.wr)#returns base linear and angular velocity
         
-        self.x = self.x + DT*v*np.cos(self.th)
-        self.y = self.y + DT*v*np.sin(self.th)
-        self.th = self.th + w*DT
+        self.x = self.x + 0.018*vp*np.cos(self.th)
+        self.y = self.y + 0.018*vp*np.sin(self.th)
+        self.th = self.th + wp*0.018
         
         return self.x, self.y, self.th #estimate current position
     
@@ -134,7 +133,7 @@ class DiffDriveRobot: #estimates the absolute position of the robot
 
 class TentaclePlanner: #plans where the robot is going finds the quickest path avoiding obstacles
     
-    def __init__(self,obstacles,dt_test=0.05,steps=5,alpha=1,beta=0.1):
+    def __init__(self,obstacles,dt_test=0.02,steps=5,alpha=1,beta=0.1):
         
         self.dt = dt_test #use fake dt to plan next step
         self.steps = steps
@@ -142,7 +141,7 @@ class TentaclePlanner: #plans where the robot is going finds the quickest path a
         self.tentacles = [(0.1,1.0),(0.1,-1.0),(0.1,0.0), (0.0, -1.0), (0.0, 1.0)]#right left front back
         
         for i,  (v, w) in enumerate(self.tentacles):
-            self.tentacles[i] = 4*v, 0.8*w
+            self.tentacles[i] = 10*v, 5*w
         
         self.alpha = alpha
         self.beta = beta
@@ -181,7 +180,7 @@ class TentaclePlanner: #plans where the robot is going finds the quickest path a
             #print('cost', cost)
             #print("obstacles:", self.obstacles)
             
-            if (v > 0 and seld.obstacles[0[): #front: can only turn left or right
+            if (v > 0 and self.obstacles[0]): #front: can only turn left or right
                cost = np.inf
             if (w > 0 and self.obstacles[1]): #left
                cost = np.inf
@@ -198,8 +197,8 @@ class TentaclePlanner: #plans where the robot is going finds the quickest path a
             costs.append(cost)
         
         best_idx = np.argmin(costs)
-        print("costs:", costs)
-        print("best route:", self.tentacles[best_idx])
+        #print("costs:", costs)
+        #print("best route:", self.tentacles[best_idx])
         
         return self.tentacles[best_idx]
     
@@ -219,10 +218,10 @@ class RobotController: #calculates the required duty cycles to get wheels
         
     def p_control(self,w_desired,w_measured,e_sum):
         
-        duty_cycle = min(max(0,np.abs(self.Kp*(w_desired-w_measured) + self.Ki*e_sum)),0.4)
+        duty_cycle = min(max(0,np.abs(self.Kp*(w_desired-w_measured) + self.Ki*e_sum)),0.30)
         
-            in1 = 1
-            in2 = 0
+        in1 = 1
+        in2 = 0
         
         if w_desired < 0:
             
@@ -232,16 +231,16 @@ class RobotController: #calculates the required duty cycles to get wheels
         
         e_sum = e_sum + (w_desired-w_measured)
         
-        print("w_desired", w_desired)
-        print("w_measured", w_measured)
+       # print("w_desired", w_desired)
+       # print("w_measured", w_measured)
         
         return duty_cycle, e_sum, in1, in2 #now returns wheel directional control
         
         
-    def drive(self,v_d,w_d,wl,wr):
+    def drive(self,v_desired,w_desired,wl,wr):
         
-         wl_desired = v_desired + self.l*w_desired/2 
-         wr_desired = v_desired - self.l*w_desired/2
+        wl_desired = v_desired + self.l*w_desired/2 
+        wr_desired = v_desired - self.l*w_desired/2
          
         duty_cycle_l,self.e_sum_l, ain1, ain2 = self.p_control(wl_desired,wl,self.e_sum_l)
         duty_cycle_r,self.e_sum_r, bin1, bin2 = self.p_control(wr_desired,wr,self.e_sum_r)
@@ -260,6 +259,10 @@ def distanceTF(GPIO_TRIGGER,GPIO_ECHO):
     return b
 
 
+        
+
+    
+    
 #INITIAL TEST: ROTATE MOTOR USING PWM SIGNALS----------------------
 #The code below turns on a pwm control, toggles the direction of the pwm drive,
 # and reads from a rotary encoder. Parameters aren't tuned or properly set-up at all.
@@ -297,7 +300,8 @@ pre_steps2 = encoder2.steps
 #     pre_steps2 = encoder2.steps
     
 #NB, if steps keeps increasing, what about integer overflows?
-    
+
+
     
 
 #TEST 2: MOVE TOWARDS SPECIFIED GOAL----------------
@@ -308,10 +312,35 @@ DT = 0.1 #This updates per iteration
 
 obstacles = [False,False,False,False] #Front, Left, Right, Back
 
-robot = DiffDriveRobot(inertia=5, drag=1, wheel_radius=2.75, wheel_sep=4.87) #INITIALISE ROBOT AND PARAMETERS
-controller = RobotController(Kp=1,Ki=0.25,wheel_radius=2.75,wheel_sep=4.87)
-planner = TentaclePlanner(obstacles = obstacles,steps=5,alpha=1,beta=0)
+robot = DiffDriveRobot(inertia=5, drag=1, wheel_radius=2.65, wheel_sep=5.5) #INITIALISE ROBOT AND PARAMETERS
+controller = RobotController(Kp=1,Ki=0.25,wheel_radius=2.65,wheel_sep=5.5)
+planner = TentaclePlanner(obstacles = obstacles,steps=5,alpha=1,beta=0.01)
 
+def turn(radians):
+    w_t = 10
+    th_st = robot.th
+    x_st = robot.x
+    y_st = robot.y
+    print("turning")
+    if(radians<0): w_t = -10
+    while (np.abs(robot.th - th_st)<np.abs(radians*230/1.57)):
+        pre_steps1 = encoder1.steps
+        pre_steps2 = encoder2.steps
+        print("inwhile")
+        pwm1.value, pwm2.value, ain1.value, ain2.value, bin1.value, bin2.value = controller.drive(0,w_t,robot.wl,robot.wr)
+        time.sleep(0.02)
+        robot.x,robot.y,robot.th = robot.pose_update()
+    robot.x = x_st
+    robot.y = y_st
+    robot.th = th_st + radians
+    pwm1.value = 0
+    pwm2.value = 0
+    print(robot.x, robot.y, robot.th)
+    print("stop")
+    
+# time.sleep(2)     
+# turn(-1.57)
+# time.sleep(10)
 
 #CODE TO CONTROL ROBOT MOTION BASED ON GOAL POSITION X, Y and THETA
 goal_x = 30
@@ -333,7 +362,10 @@ time.sleep(2)#sleep for 2s
 pre_steps1 = 0
 pre_steps2 = 0
 
-for i in range(600): #goes to goal in 300 steps or less 1 step == 1 directional change ~0.1s
+
+
+for i in range(1200): #goes to goal in 300 steps or less 1 step == 1 directional change ~0.1s
+    print("")
     print("start")
     #print("time:", 0.1*i)
     
@@ -350,7 +382,7 @@ for i in range(600): #goes to goal in 300 steps or less 1 step == 1 directional 
     obstacles = [Boolfront, Boolleft, Boolright, Boolback] #updating current obstacles
     planner.obstacles = obstacles
     
-    print("")
+    #print("")
     print(obstacles)
     
     
@@ -367,29 +399,37 @@ for i in range(600): #goes to goal in 300 steps or less 1 step == 1 directional 
         pre_steps2 = encoder2.steps
         print("Position")
         print([robot.x,robot.y,robot.th])
-        print("PWM:", pwm1.value, pwm2.value)
+        #print("PWM:", pwm1.value, pwm2.value)
      
     #Calculates send velocities to pwm 
     pwm1.value, pwm2.value, ain1.value, ain2.value, bin1.value, bin2.value = controller.drive(v,w,robot.wl,robot.wr) 
     start = time.time() #START TIMER
-    time.sleep(0.05)#move for 0.1 before calculating next route
+    time.sleep(0.018)#move for 0.1 before calculating next route
     
-    #ADD SOME MORE CODE TO MAKE THIS PART 
+    #ADD SOME MORE CODE TO MAKE THIS PART MORE ROBUST
     
     if(obstacles[0]):#force the robot to turn left 90 degrees if there is an obstacle then move forward 5cm
-        w_start = robot.th
-        while (np.abs(robot.th - w_start)<1.57): 
-            #keep turning for 90 degrees. 
-        x_start = robot.x, y_start = robot.y:  
-        while ((np.sqrt(((x_start - robot.x )**2 + (y_start - robot.y)**2)<5): 
-                #change controls with p_control function when feedback is ready
-            pwm1.value, pwm2.value, ain1.value, ain2.value, bin1.value, bin2.value = controller.drive(4, 0,robot.wl,robot.wr)
-            
+        pwm1.value = 0
+        pwm2.value = 0
+        time.sleep(1)
+        print("OBSTACLE")
+        rad = 1.57
+        stx = robot.x
+        sty = robot.y
+        if(obstacles[2]):rad = -rad
+        turn(rad)
+        while(np.sqrt((robot.x- stx)**2 + (robot.y-sty)**2)<23):
+            pre_step1 = encoder1.steps
+            pre_steps2 = encoder2.steps
+            pwm1.value, pwm2.value, ain1.value, ain2.value, bin1.value, bin2.value = controller.drive(5,0,robot.wl,robot.wr)
+            time.sleep(0.018)
+            robot.x, robot.y, robot.th = robot.pose_update()
+                          
 
     how_far = np.sqrt((goal_x-robot.x)**2 + (goal_y - robot.y)**2)  #returns how far off the final goal we are
     print("how_far", how_far)
     
-    if (-0.5 < how_far < 0.5):
+    if (-1 < how_far < 1):
         print("reached goal")
         break #stop moving when we are close enough to our goal
         
@@ -402,10 +442,6 @@ pwm1.value, pwm2.value = 0,0 #stop robot after 300 steps (30s) or if we reach ou
 
 
 
-
-
-
-    
     
     
     
