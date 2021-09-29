@@ -8,6 +8,8 @@ Created on Mon Aug 23 13:11:53 2021
 import gpiozero
 import time
 import numpy as np
+from matplotlib import pyplot as plt
+
 
 import ultrasonicFor4new
 from ultrasonicFor4new import distance, distanceTrigger, GPIO_TRIGGER_FRONT, GPIO_TRIGGER_BACK
@@ -44,9 +46,7 @@ from gpiozero import RotaryEncoder
 #C1 and C2 connects to commom ground
 
 global DT
-global pre_steps1 
-global pre_steps2 
-
+ 
 #Creating classes for PWM control and DIR Control
 pwm1 = gpiozero.PWMOutputDevice(pin=12,active_high=True,initial_value=0,frequency=1000) #creates a class of PWM output
 pwm2 = gpiozero.PWMOutputDevice(pin=13,active_high=True,initial_value=0,frequency=1000) #creates a class of PWM output
@@ -97,6 +97,11 @@ class DiffDriveRobot: #estimates the absolute position of the robot
         
         self.r = wheel_radius
         self.l = wheel_sep
+        
+        self.pre_steps1 = 0
+        self.pre_steps2 = 0
+        self.s = 0
+        self.e = 0.1
     
     
     # Veclocity motion model
@@ -112,20 +117,22 @@ class DiffDriveRobot: #estimates the absolute position of the robot
     def pose_update(self):
         
         
-        
-        self.wl = 2.1*(encoder1.steps-pre_steps1)/(np.pi*32*0.018) #measured speed cm/s - shaft encoder is 32 bits
-        self.wr = 2.1*(encoder2.steps-pre_steps2)/(np.pi*32*0.018)
-        
+        self.e = time.time()
+        Dt = self.s - self.e  
+        self.wl = 1.175*(encoder1.steps-self.pre_steps1)/(np.pi*32*Dt) #measured speed cm/s - shaft encoder is 32 bits
+        self.wr = 1.175*(encoder2.steps-self.pre_steps2)/(np.pi*32*Dt)
+        self.s = time.time()
+        self.pre_steps1 = encoder1.steps
+        self.pre_steps2 = encoder2.steps
         print('w:', self.wr, self.wl)
-        print(encoder1.steps)
-        print(pre_steps1)
+        print("Dt", Dt)
         
         
         vp, wp = self.base_velocity(self.wl,self.wr)#returns base linear and angular velocity
         
-        self.x = self.x + 0.018*vp*np.cos(self.th)
-        self.y = self.y + 0.018*vp*np.sin(self.th)
-        self.th = self.th + wp*0.018
+        self.x = self.x + Dt*vp*np.cos(self.th)
+        self.y = self.y + Dt*vp*np.sin(self.th)
+        self.th = self.th + wp*Dt
         
         return self.x, self.y, self.th #estimate current position
     
@@ -133,7 +140,7 @@ class DiffDriveRobot: #estimates the absolute position of the robot
 
 class TentaclePlanner: #plans where the robot is going finds the quickest path avoiding obstacles
     
-    def __init__(self,obstacles,dt_test=0.02,steps=5,alpha=1,beta=0.1):
+    def __init__(self,obstacles,dt_test=0.05,steps=5,alpha=1,beta=0.1):
         
         self.dt = dt_test #use fake dt to plan next step
         self.steps = steps
@@ -141,7 +148,7 @@ class TentaclePlanner: #plans where the robot is going finds the quickest path a
         self.tentacles = [(0.1,1.0),(0.1,-1.0),(0.1,0.0), (0.0, -1.0), (0.0, 1.0)]#right left front back
         
         for i,  (v, w) in enumerate(self.tentacles):
-            self.tentacles[i] = 10*v, 5*w
+            self.tentacles[i] = 5*v, 5*w
         
         self.alpha = alpha
         self.beta = beta
@@ -180,7 +187,7 @@ class TentaclePlanner: #plans where the robot is going finds the quickest path a
             #print('cost', cost)
             #print("obstacles:", self.obstacles)
             
-            if (v > 0 and self.obstacles[0]): #front: can only turn left or right
+            if (v > 0 and w == 0 and self.obstacles[0]): #front: can only turn left or right
                cost = np.inf
             if (w > 0 and self.obstacles[1]): #left
                cost = np.inf
@@ -188,15 +195,13 @@ class TentaclePlanner: #plans where the robot is going finds the quickest path a
                cost = np.inf
             if (v > 0 and w == 0 and self.obstacles[0]): #front
                cost = np.inf
-                                           
-#             if (0.1*100 <= w <= 0.5*200 and (self.obstacles[0] or self.obstacles[1])): #diag left
-#                 cost = np.inf
-#             if (-0.1*100 >= w >= -0.5*200 and (self.obstacles[0] or self.obstacles[2])): #diag right
-#                 cost = np.inf
+                                        
     
             costs.append(cost)
-        
+            
+        print(costs)
         best_idx = np.argmin(costs)
+        
         #print("costs:", costs)
         #print("best route:", self.tentacles[best_idx])
         
@@ -307,37 +312,35 @@ pre_steps2 = encoder2.steps
 #TEST 2: MOVE TOWARDS SPECIFIED GOAL----------------
 #TO DO - PUT IN CORRECT ROBOT PARAMETERS
 
-start = 0
-DT = 0.1 #This updates per iteration
 
 obstacles = [False,False,False,False] #Front, Left, Right, Back
 
-robot = DiffDriveRobot(inertia=5, drag=1, wheel_radius=2.65, wheel_sep=5.5) #INITIALISE ROBOT AND PARAMETERS
-controller = RobotController(Kp=1,Ki=0.25,wheel_radius=2.65,wheel_sep=5.5)
+robot = DiffDriveRobot(inertia=5, drag=1, wheel_radius=2.65, wheel_sep=4.05) #INITIALISE ROBOT AND PARAMETERS
+controller = RobotController(Kp=1,Ki=0.25,wheel_radius=2.65,wheel_sep=4.05)
 planner = TentaclePlanner(obstacles = obstacles,steps=5,alpha=1,beta=0.01)
 
-def turn(radians):
-    w_t = 10
-    th_st = robot.th
-    x_st = robot.x
-    y_st = robot.y
-    print("turning")
-    if(radians<0): w_t = -10
-    while (np.abs(robot.th - th_st)<np.abs(radians*230/1.57)):
-        pre_steps1 = encoder1.steps
-        pre_steps2 = encoder2.steps
-        print("inwhile")
-        pwm1.value, pwm2.value, ain1.value, ain2.value, bin1.value, bin2.value = controller.drive(0,w_t,robot.wl,robot.wr)
-        time.sleep(0.02)
-        robot.x,robot.y,robot.th = robot.pose_update()
-    robot.x = x_st
-    robot.y = y_st
-    robot.th = th_st + radians
-    pwm1.value = 0
-    pwm2.value = 0
-    print(robot.x, robot.y, robot.th)
-    print("stop")
-    
+# def turn(radians):
+#     w_t = 10
+#     th_st = robot.th
+#     x_st = robot.x
+#     y_st = robot.y
+#     print("turning")
+#     if(radians<0): w_t = -10
+#     while (np.abs(robot.th - th_st)<np.abs(radians*390/1.57)):
+#         pre_steps1 = encoder1.steps
+#         pre_steps2 = encoder2.steps
+#         print("inwhile")
+#         pwm1.value, pwm2.value, ain1.value, ain2.value, bin1.value, bin2.value = controller.drive(0,w_t,robot.wl,robot.wr)
+#         time.sleep(0.005)
+#         robot.x,robot.y,robot.th = robot.pose_update()
+#     robot.x = x_st
+#     robot.y = y_st
+#     robot.th = th_st + radians
+#     pwm1.value = 0
+#     pwm2.value = 0
+#     print(robot.x, robot.y, robot.th)
+#     print("stop")
+# #     
 # time.sleep(2)     
 # turn(-1.57)
 # time.sleep(10)
@@ -361,10 +364,15 @@ time.sleep(2)#sleep for 2s
 
 pre_steps1 = 0
 pre_steps2 = 0
+encoder1.steps = 0
+encoder2.steps = 0
 
+print("start", encoder1.steps, encoder2.steps)
 
+x_logger = []
+y_logger = []
 
-for i in range(1200): #goes to goal in 300 steps or less 1 step == 1 directional change ~0.1s
+for i in range(300): #goes to goal in 300 steps or less 1 step == 1 directional change ~0.1s
     print("")
     print("start")
     #print("time:", 0.1*i)
@@ -394,9 +402,8 @@ for i in range(1200): #goes to goal in 300 steps or less 1 step == 1 directional
         DT = end - start
         print("DT", DT)
         robot.x,robot.y,robot.th = robot.pose_update() #simulate robot movement, update position, no arguments as reads off encoders.
-            #go in that direction. send pwm signal Keep travelling (0.1s)
-        pre_steps1 = encoder1.steps #how many encoder steps have we taken at the end of the step
-        pre_steps2 = encoder2.steps
+        x_logger.append(robot.x)
+        y_logger.append(robot.y)
         print("Position")
         print([robot.x,robot.y,robot.th])
         #print("PWM:", pwm1.value, pwm2.value)
@@ -404,27 +411,30 @@ for i in range(1200): #goes to goal in 300 steps or less 1 step == 1 directional
     #Calculates send velocities to pwm 
     pwm1.value, pwm2.value, ain1.value, ain2.value, bin1.value, bin2.value = controller.drive(v,w,robot.wl,robot.wr) 
     start = time.time() #START TIMER
-    time.sleep(0.018)#move for 0.1 before calculating next route
+    time.sleep(0.05)#move for 0.1 before calculating next route
     
     #ADD SOME MORE CODE TO MAKE THIS PART MORE ROBUST
     
     if(obstacles[0]):#force the robot to turn left 90 degrees if there is an obstacle then move forward 5cm
+        robot.x,robot.y,robot.th = robot.pose_update()
         pwm1.value = 0
         pwm2.value = 0
         time.sleep(1)
         print("OBSTACLE")
         rad = 1.57
-        stx = robot.x
-        sty = robot.y
         if(obstacles[2]):rad = -rad
-        turn(rad)
-        while(np.sqrt((robot.x- stx)**2 + (robot.y-sty)**2)<23):
-            pre_step1 = encoder1.steps
-            pre_steps2 = encoder2.steps
-            pwm1.value, pwm2.value, ain1.value, ain2.value, bin1.value, bin2.value = controller.drive(5,0,robot.wl,robot.wr)
-            time.sleep(0.018)
-            robot.x, robot.y, robot.th = robot.pose_update()
-                          
+        stx = robot.x + 20*np.cos(rad)
+        sty = robot.y + 20*np.sin(rad)
+        while(np.sqrt((stx - robot.x)**2 + (sty- robot.y)**2)>2):
+            print("IN LOOP")
+            obstacles[0] = False
+            v, w = planner.plan(stx,sty,0,robot.x,robot.y,robot.th)
+            print("avoidance:",v, w)
+            pwm1.value, pwm2.value, ain1.value, ain2.value, bin1.value, bin2.value = controller.drive(v,w,robot.wl,robot.wr)
+            time.sleep(0.05)
+            robot.x,robot.y,robot.th = robot.pose_update()
+            x_logger.append(robot.x)
+            y_logger.append(robot.y)              
 
     how_far = np.sqrt((goal_x-robot.x)**2 + (goal_y - robot.y)**2)  #returns how far off the final goal we are
     print("how_far", how_far)
@@ -436,7 +446,9 @@ for i in range(1200): #goes to goal in 300 steps or less 1 step == 1 directional
     
 pwm1.value, pwm2.value = 0,0 #stop robot after 300 steps (30s) or if we reach out final goal
 
-
+plt.plot(y_logger, x_logger)
+plt.grid()
+plt.show()
 #TO DO! find a way to calibrate robot posision using computer vision of US avoid error building up
 
 
