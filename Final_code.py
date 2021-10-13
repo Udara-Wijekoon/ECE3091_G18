@@ -12,8 +12,8 @@ from matplotlib import pyplot as plt
 
 
 import ultrasonicFor4new
-from ultrasonicFor4new import distance, distanceTrigger, GPIO_TRIGGER_FRONT, GPIO_TRIGGER_BACK
-from ultrasonicFor4new import GPIO_TRIGGER_LEFT, GPIO_TRIGGER_RIGHT, GPIO_ECHO_FRONT, GPIO_ECHO_BACK, GPIO_ECHO_LEFT, GPIO_ECHO_RIGHT
+from ultrasonicFor4new import distance, distanceTrigger, GPIO_TRIGGER
+from ultrasonicFor4new import GPIO_ECHO_FRONTLEFT, GPIO_ECHO_FRONTRIGHT, GPIO_ECHO_LEFT, GPIO_ECHO_RIGHT
 from gpiozero import RotaryEncoder
 
 #Shaft , Motor Control and Robot Navigation
@@ -188,13 +188,11 @@ class TentaclePlanner: #plans where the robot is going finds the quickest path a
             #print('cost', cost)
             #print("obstacles:", self.obstacles)
             
-            if (v > 0 and w == 0 and self.obstacles[0]): #front: can only turn left or right
-               cost = np.inf
             if (w > 0 and self.obstacles[1]): #left
                cost = np.inf
             if (w < -0 and self.obstacles[2]): #right
                cost = np.inf
-            if (v > 0 and w == 0 and self.obstacles[0]): #front
+            if (v > 0 and w == 0 and (self.obstacles[0]or self.obstacles[3]): #front
                cost = np.inf
             if (turn and v>0): #only allow for on the spot rotations
                cost = np.inf
@@ -267,10 +265,7 @@ def distanceTF(GPIO_TRIGGER,GPIO_ECHO):
     return b
 
 
-        
-
-    
-    
+       
 #INITIAL TEST: ROTATE MOTOR USING PWM SIGNALS----------------------
 #The code below turns on a pwm control, toggles the direction of the pwm drive,
 # and reads from a rotary encoder. Parameters aren't tuned or properly set-up at all.
@@ -359,14 +354,13 @@ def move(goal_x, goal_y, goal_th, turn):
      costs = []
 
      #TO DO! check for obstacles and update detected obstacles
-     Boolfront = distanceTF(GPIO_TRIGGER_FRONT,GPIO_ECHO_FRONT)
-     Boolleft = distanceTF(GPIO_TRIGGER_LEFT,GPIO_ECHO_LEFT)
-     Boolright = distanceTF(GPIO_TRIGGER_RIGHT,GPIO_ECHO_RIGHT)
-     #Boolback = distanceTF(GPIO_TRIGGER_BACK,GPIO_ECHO_BACK)
-     Boolback = False
+    # Boolfrontleft = distanceTF(GPIO_TRIGGER,GPIO_ECHO_FRONT_RIGHT)
+     Boolleft = distanceTF(GPIO_TRIGGER,GPIO_ECHO_LEFT)
+    # Boolfrontright = distanceTF(GPIO_TRIGGER,GPIO_ECHO_FRONT_LEFT)
+     Boolright = distanceTF(GPIO_TRIGGER_BACK,GPIO_ECHO_RIGHT)
      #--------------checking for obstacles
 
-     obstacles = [Boolfront, Boolleft, Boolright, Boolback] #updating current obstacles
+     obstacles = [Boolfrontleft, Boolleft, Boolright, Boolfrontright] #updating current obstacles
      planner.obstacles = obstacles
 
      #print("")
@@ -394,7 +388,7 @@ def move(goal_x, goal_y, goal_th, turn):
 
      #ADD SOME MORE CODE TO MAKE THIS PART MORE ROBUST
 
-     if(obstacles[0]):#force the robot to turn left 90 degrees if there is an obstacle then move forward 5cm
+     if(obstacles[0] or obstacles[3]):#force the robot to turn left 90 degrees if there is an obstacle then move forward 5cm
          robot.x,robot.y,robot.th = robot.pose_update()
          pwm1.value = 0
          pwm2.value = 0
