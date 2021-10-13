@@ -140,12 +140,13 @@ class DiffDriveRobot: #estimates the absolute position of the robot
 
 class TentaclePlanner: #plans where the robot is going finds the quickest path avoiding obstacles
     
-    def __init__(self,obstacles,dt_test=0.05,steps=5,alpha=1,beta=0.1):
+    def __init__(self,obstacles,dt_test=0.05,steps=5,alpha=1,beta=0.1, turn = 0):
         
         self.dt = dt_test #use fake dt to plan next step
         self.steps = steps
         # Tentacles are possible trajectories to follow
         self.tentacles = [(0.1,1.0),(0.1,-1.0),(0.1,0.0), (0.0, -1.0), (0.0, 1.0)]#right left front back
+        self.turn = turn
         
         for i,  (v, w) in enumerate(self.tentacles):
             self.tentacles[i] = 5*v, 5*w
@@ -194,6 +195,8 @@ class TentaclePlanner: #plans where the robot is going finds the quickest path a
             if (w < -0 and self.obstacles[2]): #right
                cost = np.inf
             if (v > 0 and w == 0 and self.obstacles[0]): #front
+               cost = np.inf
+            if (turn and v>0): #only allow for on the spot rotations
                cost = np.inf
                                         
     
@@ -312,149 +315,132 @@ pre_steps2 = encoder2.steps
 #TEST 2: MOVE TOWARDS SPECIFIED GOAL----------------
 #TO DO - PUT IN CORRECT ROBOT PARAMETERS
 
+def move(goal_x, goal_y, goal_th, turn): 
 
-obstacles = [False,False,False,False] #Front, Left, Right, Back
+ obstacles = [False,False,False,False] #Front, Left, Right, Back
 
-robot = DiffDriveRobot(inertia=5, drag=1, wheel_radius=2.65, wheel_sep=4.05) #INITIALISE ROBOT AND PARAMETERS
-controller = RobotController(Kp=1,Ki=0.25,wheel_radius=2.65,wheel_sep=4.05)
-planner = TentaclePlanner(obstacles = obstacles,steps=5,alpha=1,beta=0.01)
+ robot = DiffDriveRobot(inertia=5, drag=1, wheel_radius=2.65, wheel_sep=4.05) #INITIALISE ROBOT AND PARAMETERS
+ controller = RobotController(Kp=1,Ki=0.25,wheel_radius=2.65,wheel_sep=4.05)
+ planner = TentaclePlanner(obstacles = obstacles,steps=5,alpha=1,beta=0.01, turn = turn)
 
-# def turn(radians):
-#     w_t = 10
-#     th_st = robot.th
-#     x_st = robot.x
-#     y_st = robot.y
-#     print("turning")
-#     if(radians<0): w_t = -10
-#     while (np.abs(robot.th - th_st)<np.abs(radians*390/1.57)):
-#         pre_steps1 = encoder1.steps
-#         pre_steps2 = encoder2.steps
-#         print("inwhile")
-#         pwm1.value, pwm2.value, ain1.value, ain2.value, bin1.value, bin2.value = controller.drive(0,w_t,robot.wl,robot.wr)
-#         time.sleep(0.005)
-#         robot.x,robot.y,robot.th = robot.pose_update()
-#     robot.x = x_st
-#     robot.y = y_st
-#     robot.th = th_st + radians
-#     pwm1.value = 0
-#     pwm2.value = 0
-#     print(robot.x, robot.y, robot.th)
-#     print("stop")
-# #     
-# time.sleep(2)     
-# turn(-1.57)
-# time.sleep(10)
 
-#CODE TO CONTROL ROBOT MOTION BASED ON GOAL POSITION X, Y and THETA
-goal_x = 30
-goal_y = -30
-goal_th = 0
+ #CODE TO CONTROL ROBOT MOTION BASED ON GOAL POSITION X, Y and THETA
+ goal_x = 30
+ goal_y = -30
+ goal_th = 0
 
-print(goal_x, goal_y, goal_th)
+ print(goal_x, goal_y, goal_th)
 
-#Initialise direction as forward again. (prelim wheels dont change spin direction)
-ain1.value = 1
-ain2.value = 0
-bin1.value = 1 
-bin2.value = 0 
+ #Initialise direction as forward again. (prelim wheels dont change spin direction)
+ ain1.value = 1
+ ain2.value = 0
+ bin1.value = 1 
+ bin2.value = 0 
 
-pwm1.value = 0
-pwm2.value = 0
-time.sleep(2)#sleep for 2s
+ pwm1.value = 0
+ pwm2.value = 0
+ time.sleep(2)#sleep for 2s
 
-pre_steps1 = 0
-pre_steps2 = 0
-encoder1.steps = 0
-encoder2.steps = 0
+ pre_steps1 = 0
+ pre_steps2 = 0
+ encoder1.steps = 0
+ encoder2.steps = 0
 
-print("start", encoder1.steps, encoder2.steps)
+ print("start", encoder1.steps, encoder2.steps)
 
-x_logger = []
-y_logger = []
+ x_logger = []
+ y_logger = []
 
-for i in range(300): #goes to goal in 300 steps or less 1 step == 1 directional change ~0.1s
-    print("")
-    print("start")
-    #print("time:", 0.1*i)
-    
-    costs = []
-    
-    #TO DO! check for obstacles and update detected obstacles
-    Boolfront = distanceTF(GPIO_TRIGGER_FRONT,GPIO_ECHO_FRONT)
-    Boolleft = distanceTF(GPIO_TRIGGER_LEFT,GPIO_ECHO_LEFT)
-    Boolright = distanceTF(GPIO_TRIGGER_RIGHT,GPIO_ECHO_RIGHT)
-    #Boolback = distanceTF(GPIO_TRIGGER_BACK,GPIO_ECHO_BACK)
-    Boolback = False
-    #--------------checking for obstacles
-    
-    obstacles = [Boolfront, Boolleft, Boolright, Boolback] #updating current obstacles
-    planner.obstacles = obstacles
-    
-    #print("")
-    print(obstacles)
-    
-    
-    v,w = planner.plan(goal_x,goal_y,goal_th,robot.x,robot.y,robot.th) #Calculates required direction to get to goal v, w 
-    
-    end = time.time()
-    
-    if i>0: #update robot position after first iteration
-        DT = end - start
-        print("DT", DT)
-        robot.x,robot.y,robot.th = robot.pose_update() #simulate robot movement, update position, no arguments as reads off encoders.
-        x_logger.append(robot.x)
-        y_logger.append(robot.y)
-        print("Position")
-        print([robot.x,robot.y,robot.th])
-        #print("PWM:", pwm1.value, pwm2.value)
+ for i in range(300): #goes to goal in 300 steps or less 1 step == 1 directional change ~0.1s
+     print("")
+     print("start")
+     #print("time:", 0.1*i)
+
+     costs = []
+
+     #TO DO! check for obstacles and update detected obstacles
+     Boolfront = distanceTF(GPIO_TRIGGER_FRONT,GPIO_ECHO_FRONT)
+     Boolleft = distanceTF(GPIO_TRIGGER_LEFT,GPIO_ECHO_LEFT)
+     Boolright = distanceTF(GPIO_TRIGGER_RIGHT,GPIO_ECHO_RIGHT)
+     #Boolback = distanceTF(GPIO_TRIGGER_BACK,GPIO_ECHO_BACK)
+     Boolback = False
+     #--------------checking for obstacles
+
+     obstacles = [Boolfront, Boolleft, Boolright, Boolback] #updating current obstacles
+     planner.obstacles = obstacles
+
+     #print("")
+     print(obstacles)
+
+
+     v,w = planner.plan(goal_x,goal_y,goal_th,robot.x,robot.y,robot.th) #Calculates required direction to get to goal v, w 
+
+     end = time.time()
+
+     if i>0: #update robot position after first iteration
+         DT = end - start
+         print("DT", DT)
+         robot.x,robot.y,robot.th = robot.pose_update() #simulate robot movement, update position, no arguments as reads off encoders.
+         x_logger.append(robot.x)
+         y_logger.append(robot.y)
+         print("Position")
+         print([robot.x,robot.y,robot.th])
+         #print("PWM:", pwm1.value, pwm2.value)
+
+     #Calculates send velocities to pwm 
+     pwm1.value, pwm2.value, ain1.value, ain2.value, bin1.value, bin2.value = controller.drive(v,w,robot.wl,robot.wr) 
+     start = time.time() #START TIMER
+     time.sleep(0.01)#move for 0.01 before calculating next route
+
+     #ADD SOME MORE CODE TO MAKE THIS PART MORE ROBUST
+
+     if(obstacles[0]):#force the robot to turn left 90 degrees if there is an obstacle then move forward 5cm
+         robot.x,robot.y,robot.th = robot.pose_update()
+         pwm1.value = 0
+         pwm2.value = 0
+         time.sleep(1)
+         print("OBSTACLE")
+         rad = 1.57
+         if(obstacles[2]):rad = -rad
+         stx = robot.x + 20*np.cos(rad)
+         sty = robot.y + 20*np.sin(rad)
+         while(np.sqrt((stx - robot.x)**2 + (sty- robot.y)**2)>2):
+             print("IN LOOP")
+             obstacles[0] = False
+             v, w = planner.plan(stx,sty,0,robot.x,robot.y,robot.th)
+             print("avoidance:",v, w)
+             pwm1.value, pwm2.value, ain1.value, ain2.value, bin1.value, bin2.value = controller.drive(v,w,robot.wl,robot.wr)
+             time.sleep(0.01)
+             robot.x,robot.y,robot.th = robot.pose_update()
+             x_logger.append(robot.x)
+             y_logger.append(robot.y)              
+
+     how_far = np.sqrt((goal_x-robot.x)**2 + (goal_y - robot.y)**2)  #returns how far off the final goal we are
+     print("how_far", how_far)
      
-    #Calculates send velocities to pwm 
-    pwm1.value, pwm2.value, ain1.value, ain2.value, bin1.value, bin2.value = controller.drive(v,w,robot.wl,robot.wr) 
-    start = time.time() #START TIMER
-    time.sleep(0.05)#move for 0.1 before calculating next route
-    
-    #ADD SOME MORE CODE TO MAKE THIS PART MORE ROBUST
-    
-    if(obstacles[0]):#force the robot to turn left 90 degrees if there is an obstacle then move forward 5cm
-        robot.x,robot.y,robot.th = robot.pose_update()
-        pwm1.value = 0
-        pwm2.value = 0
-        time.sleep(1)
-        print("OBSTACLE")
-        rad = 1.57
-        if(obstacles[2]):rad = -rad
-        stx = robot.x + 20*np.cos(rad)
-        sty = robot.y + 20*np.sin(rad)
-        while(np.sqrt((stx - robot.x)**2 + (sty- robot.y)**2)>2):
-            print("IN LOOP")
-            obstacles[0] = False
-            v, w = planner.plan(stx,sty,0,robot.x,robot.y,robot.th)
-            print("avoidance:",v, w)
-            pwm1.value, pwm2.value, ain1.value, ain2.value, bin1.value, bin2.value = controller.drive(v,w,robot.wl,robot.wr)
-            time.sleep(0.05)
-            robot.x,robot.y,robot.th = robot.pose_update()
-            x_logger.append(robot.x)
-            y_logger.append(robot.y)              
+     angle = np.abs(goal_th - robot.th) #how far off are we from our desired angle
+     print("angle goal", angle)
 
-    how_far = np.sqrt((goal_x-robot.x)**2 + (goal_y - robot.y)**2)  #returns how far off the final goal we are
-    print("how_far", how_far)
-    
-    if (-1 < how_far < 1):
-        print("reached goal")
-        break #stop moving when we are close enough to our goal
+     if ((how_far < 1) and turn ==0):
+         print("reached goal")
+         break #stop moving when we are close enough to our goal
         
-    
-pwm1.value, pwm2.value = 0,0 #stop robot after 300 steps (30s) or if we reach out final goal
+     if (turn and (angle < 0.1) ): 
+         print("reached angle") 
+         break
+       
 
-plt.plot(y_logger, x_logger)
-plt.grid()
-plt.show()
+
+ pwm1.value, pwm2.value = 0,0 #stop robot after 300 steps (30s) or if we reach out final goal
+
+#plt.plot(y_logger, x_logger)
+# plt.grid()
+# plt.show()
 #TO DO! find a way to calibrate robot posision using computer vision of US avoid error building up
 
+move(30,0,0,0)
 
 
-
-    
     
     
     
