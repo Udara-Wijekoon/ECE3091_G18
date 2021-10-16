@@ -320,11 +320,11 @@ def move(goal_x, goal_y, goal_th, turn):
 
 
  #CODE TO CONTROL ROBOT MOTION BASED ON GOAL POSITION X, Y and THETA
- goal_x = 30
- goal_y = -30
- goal_th = 0
+ #goal_x = 30
+# goal_y = 0
+# goal_th = 0
 
- print(goal_x, goal_y, goal_th)
+ print(goal_x, goal_y, goal_th, turn)
 
  #Initialise direction as forward again. (prelim wheels dont change spin direction)
  ain1.value = 1
@@ -388,7 +388,8 @@ def move(goal_x, goal_y, goal_th, turn):
 
      #ADD SOME MORE CODE TO MAKE THIS PART MORE ROBUST
 
-     if(obstacles[0] or obstacles[3]):#force the robot to turn left 90 degrees if there is an obstacle then move forward 5cm
+     if(obstacles[0] or obstacles[3]):#force the robot to turn left 90 degrees if there is an obstacle
+         planner.turn = 1 #forces the robot to turn on the spot
          robot.x,robot.y,robot.th = robot.pose_update()
          pwm1.value = 0
          pwm2.value = 0
@@ -396,18 +397,22 @@ def move(goal_x, goal_y, goal_th, turn):
          print("OBSTACLE")
          rad = 1.57
          if(obstacles[2]):rad = -rad
-         stx = robot.x + 20*np.cos(rad)
-         sty = robot.y + 20*np.sin(rad)
-         while(np.sqrt((stx - robot.x)**2 + (sty- robot.y)**2)>2):
+         #stx = robot.x + 20*np.cos(rad) old code which forced the robot to turn 90 deg and go 5cm
+         #sty = robot.y + 20*np.sin(rad)
+         turn_rad = robot.th + rad
+         while(np.abs(turn_rad - robot.th))>0.1):
              print("IN LOOP")
              obstacles[0] = False
-             v, w = planner.plan(stx,sty,0,robot.x,robot.y,robot.th)
+             obstacles[3] = False
+             v, w = planner.plan(0,0,rad,robot.x,robot.y,robot.th)
              print("avoidance:",v, w)
              pwm1.value, pwm2.value, ain1.value, ain2.value, bin1.value, bin2.value = controller.drive(v,w,robot.wl,robot.wr)
              time.sleep(0.01)
              robot.x,robot.y,robot.th = robot.pose_update()
              x_logger.append(robot.x)
-             y_logger.append(robot.y)              
+             y_logger.append(robot.y)
+             
+         break #stop nagivation after detecting obstacle and turning 90 deg
 
      how_far = np.sqrt((goal_x-robot.x)**2 + (goal_y - robot.y)**2)  #returns how far off the final goal we are
      print("how_far", how_far)
@@ -415,7 +420,7 @@ def move(goal_x, goal_y, goal_th, turn):
      angle = np.abs(goal_th - robot.th) #how far off are we from our desired angle
      print("angle goal", angle)
 
-     if ((how_far < 1) and turn ==0):
+     if ((how_far < 1.5) and turn ==0):
          print("reached goal")
          break #stop moving when we are close enough to our goal
         
